@@ -3,6 +3,7 @@ const dotenv = require('dotenv');
 const express = require('express');
 const browserManager = require('../core/browser');
 const recorder = require('../core/recorder');
+const github = require('../utils/github');
 const logger = require('../utils/logger');
 
 // Load environment variables
@@ -70,11 +71,32 @@ bot.command('join', async (ctx) => {
     }
 
     const meetingUrl = parts[1];
-    ctx.replyWithMarkdown("🌀 *Deploying GHOST meet Virtual Display...*");
 
+    // Check if we are on Render
+    if (process.env.RENDER) {
+        ctx.replyWithMarkdown("🚀 *GHOST meet | Triggering Hybrid Runner...*\nOffloading heavy browser engine to GitHub Actions (7GB RAM).");
+        try {
+            await github.triggerRunner(meetingUrl);
+            ctx.replyWithMarkdown(
+                "✅ *Runner Dispatched*\n" +
+                "━━━━━━━━━━━━━━━━━━━━━━\n" +
+                "GitHub Actions is now booting the capture engine.\n\n" +
+                "⏳ *Next Steps:*\n" +
+                "1. Wait ~30 seconds for the engine to initialize.\n" +
+                "2. The Runner will post the **Secure Tunnel Link** here once ready.\n" +
+                "3. Once you log in, send `/record` to start."
+            );
+        } catch (error) {
+            logger.error("GitHub Trigger Failure:", error);
+            ctx.replyWithMarkdown(`🚨 *Dispatch Failure:* ${error.message}`);
+        }
+        return;
+    }
+
+    // Local/Non-Render logic
+    ctx.replyWithMarkdown("🌀 *Deploying Local Virtual Display...*");
     try {
         const tunnel = await browserManager.launchMeeting(meetingUrl);
-
         const successUI =
             "✅ *Visual Engine Online*\n" +
             "━━━━━━━━━━━━━━━━━━━━━━\n" +
@@ -84,7 +106,6 @@ bot.command('join', async (ctx) => {
             "1. Enter the dashboard link above.\n" +
             "2. Handle meeting credentials & permissions.\n" +
             "3. Once the meeting is active, return here and send `/record`.";
-
         ctx.replyWithMarkdown(successUI);
     } catch (error) {
         logger.error("Deployment Failure:", error);
