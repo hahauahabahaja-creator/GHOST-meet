@@ -1,5 +1,6 @@
 const { Telegraf, Markup } = require('telegraf');
 const dotenv = require('dotenv');
+const express = require('express');
 const browserManager = require('../core/browser');
 const recorder = require('../core/recorder');
 const logger = require('../utils/logger');
@@ -170,6 +171,14 @@ bot.action('help_guide', (ctx) => {
 });
 
 // Launch sequence
+const app = express();
+const PORT = process.env.PORT || 10000;
+
+app.get('/', (req, res) => res.send('GHOST Meet Bot is Running!'));
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server is listening on port ${PORT}`);
+});
+
 bot.launch().then(() => {
     console.log("🚀 GHOST meet Bot is initialized and guarding the group.");
 });
