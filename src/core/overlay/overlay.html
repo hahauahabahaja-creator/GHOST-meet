@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GHOST meet Control Overlay</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #0a0a0a;
+            color: #00ffcc;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            border: 2px solid #00ffcc;
+            box-sizing: border-box;
+        }
+
+        .ghost-logo {
+            font-size: 80px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 10px;
+            text-shadow: 0 0 20px #00ffcc, 0 0 40px #00ffcc;
+            animation: glow 2s infinite alternate;
+        }
+
+        @keyframes glow {
+            from { text-shadow: 0 0 10px #00ffcc, 0 0 20px #00ffcc; }
+            to { text-shadow: 0 0 30px #00ffcc, 0 0 60px #00ffcc; }
+        }
+
+        .handshake-effect {
+            width: 200px;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #00ffcc, transparent);
+            margin-top: 20px;
+            animation: slide 3s infinite linear;
+        }
+
+        @keyframes slide {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+        }
+
+        .status-box {
+            margin-top: 50px;
+            padding: 20px;
+            border: 1px solid #00ffcc;
+            background: rgba(0, 255, 204, 0.1);
+            text-align: center;
+        }
+
+        .status-text {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        .blink {
+            animation: blinker 1s linear infinite;
+        }
+
+        @keyframes blinker {
+            50% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="ghost-logo">GHOST meet</div>
+    <div class="handshake-effect"></div>
+    <div class="status-box">
+        <div class="status-text">SYSTEM STATUS: <span class="blink">READY</span></div>
+        <div class="status-text">RESOLUTION: 1920x1080 HD</div>
+        <div class="status-text">SECURE TUNNEL: ACTIVE</div>
+    </div>
+</body>
+</html>
