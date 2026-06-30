@@ -1,0 +1,70 @@
+name: GHOST meet Heavy Runner
+
+on:
+  repository_dispatch:
+    types: [start_ghost_runner]
+
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360 # Up to 6 hours recording
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install System Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            xvfb \
+            x11vnc \
+            ffmpeg \
+            pulseaudio \
+            dbus-x11 \
+            libxss1 \
+            google-chrome-stable
+
+      - name: Install Node Dependencies
+        run: npm install
+
+      - name: Install Python Dependencies
+        run: pip install SpeechRecognition --break-system-packages
+
+      - name: Initialize Virtual Display & Audio
+        run: |
+          # Start Xvfb
+          Xvfb :99 -screen 0 1920x1080x24 &
+          echo "DISPLAY=:99" >> $GITHUB_ENV
+          
+          # Initialize DBUS & PulseAudio
+          mkdir -p /var/run/dbus
+          dbus-daemon --config-file=/usr/share/dbus-1/system.conf --print-address &
+          pulseaudio -D --exit-idle-time=-1
+          
+          # Create virtual sink
+          pactl load-module module-virtual-sink sink_name=v_sink
+          pactl set-default-sink v_sink
+
+      - name: Execute GHOST meet Runner
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          ALLOWED_GROUP_ID: ${{ secrets.ALLOWED_GROUP_ID }}
+          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+          MEETING_URL: ${{ github.event.client_payload.meeting_url }}
+          DISPLAY: :99
+          CHROME_PATH: /usr/bin/google-chrome-stable
+        run: |
+          # We will create a dedicated runner script to manage the lifecycle on GitHub
+          node scripts/github_runner.js
