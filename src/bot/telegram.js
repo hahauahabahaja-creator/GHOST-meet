@@ -179,9 +179,19 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-bot.launch().then(() => {
-    console.log("🚀 GHOST meet Bot is initialized and guarding the group.");
-});
+function launchBot() {
+    bot.launch()
+        .then(() => {
+            console.log("🚀 GHOST meet Bot is initialized and guarding the group.");
+        })
+        .catch((err) => {
+            console.error("❌ Telegram Launch Error:", err.message);
+            console.log("🔄 Retrying bot connection in 10 seconds...");
+            setTimeout(launchBot, 10000); // Retry without crashing the Express server
+        });
+}
+
+launchBot();
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
