@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python speech recognition
-RUN pip3 install SpeechRecognition
+RUN pip3 install --break-system-packages SpeechRecognition
 
 # Create app directory
 WORKDIR /usr/src/app
