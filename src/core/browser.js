@@ -21,33 +21,23 @@ async function launchMeeting(url) {
 
         logger.info("Starting visual Ngrok tunnel...");
 
-        // ULTIMATE NGROK FIX:
-        // 'invalid tunnel configuration' usually happens due to region mismatch or stray config.
-        // We will try multiple regions and ensure zero name-based conflicts.
-        const regions = ['us', 'eu', 'ap', 'au', 'jp', 'sa', 'in'];
-        let connected = false;
+        // 1. Force kill any existing ngrok processes to clear the environment
+        try {
+            await ngrok.kill();
+        } catch (e) {}
 
-        for (const region of regions) {
-            try {
-                logger.info(`Attempting Ngrok connection in region: ${region}...`);
-                await ngrok.kill(); // Reset state
-                ngrokUrl = await ngrok.connect({
-                    proto: 'http',
-                    addr: 6080,
-                    authtoken: process.env.NGROK_AUTH_TOKEN,
-                    region: region,
-                });
-                connected = true;
-                logger.info(`Ngrok tunnel established: ${ngrokUrl} (Region: ${region})`);
-                break;
-            } catch (err) {
-                logger.warn(`Ngrok attempt in ${region} failed: ${err.message}`);
-                continue;
-            }
-        }
-
-        if (!connected) {
-            throw new Error("All Ngrok regions exhausted. Check your NGROK_AUTH_TOKEN and account status.");
+        // 2. Simple, clean connection with the NEW token
+        // We use the most basic configuration to avoid account-level policy conflicts
+        try {
+            ngrokUrl = await ngrok.connect({
+                proto: 'http',
+                addr: 6080, // noVNC default port
+                authtoken: process.env.NGROK_AUTH_TOKEN
+            });
+            logger.info(`Ngrok tunnel established: ${ngrokUrl}`);
+        } catch (err) {
+            logger.error(`Ngrok connection failed: ${err.message}`);
+            throw new Error(`Ngrok Error: ${err.message}. Ensure your token is valid and email is verified.`);
         }
 
         logger.info(`Launching Puppeteer on DISPLAY :99 for URL: ${url}`);
