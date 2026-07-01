@@ -4,6 +4,11 @@ on:
   repository_dispatch:
     types: [start_ghost_runner]
 
+# Grant global permissions for log deletion and content reading
+permissions:
+  actions: write
+  contents: read
+
 jobs:
   capture:
     runs-on: ubuntu-latest

@@ -30,12 +30,13 @@ async function launchMeeting(url) {
                 let found = false;
                 const timeout = setTimeout(() => {
                     if (!found) resolve("http://localhost:6080");
-                }, 15000);
+                }, 20000); // Increased timeout
 
                 tunnelInstance.stdout.on('data', (data) => {
                     const msg = data.toString();
+                    // Better regex to capture the specific tunnel URL and ignore generic serveo.net links
                     const match = msg.match(/https:\/\/[a-z0-9-]+\.serveo\.net/i);
-                    if (match) {
+                    if (match && !match[0].includes('console.serveo.net')) {
                         found = true;
                         clearTimeout(timeout);
                         resolve(match[0]);

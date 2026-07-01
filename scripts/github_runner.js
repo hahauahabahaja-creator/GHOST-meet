@@ -16,27 +16,48 @@ async function run() {
     try {
         console.log(`🚀 Starting GitHub Runner for URL: ${meetingUrl}`);
 
-        // 1. Notify Group
-        await bot.telegram.sendMessage(groupId, "🛸 *GHOST meet Runner Active*\n━━━━━━━━━━━━━━━━━━━━━━\nInitializing 7GB High-Performance Engine...", { parse_mode: 'Markdown' });
+        // 1. Notify Group (Retrying if conflict)
+        async function notifyStart() {
+            try {
+                await bot.telegram.sendMessage(groupId, "🛸 *GHOST meet Runner Active*\n━━━━━━━━━━━━━━━━━━━━━━\nInitializing 7GB High-Performance Engine...", { parse_mode: 'Markdown' });
+            } catch (err) {
+                if (err.response && err.response.error_code === 409) {
+                    console.log("Conflict during notify, waiting 5s...");
+                    await new Promise(r => setTimeout(r, 5000));
+                    return notifyStart();
+                }
+                throw err;
+            }
+        }
+        await notifyStart();
 
         // 2. Launch Browser
         const tunnel = await browserManager.launchMeeting(meetingUrl);
 
-        // 3. Send Tunnel Link
-        await bot.telegram.sendMessage(groupId,
-            "✅ *Visual Engine Booted (GitHub Actions)*\n" +
-            "━━━━━━━━━━━━━━━━━━━━━━\n" +
-            "🔗 *Secure Control Tunnel:*\n" +
-            `[ACCESS DASHBOARD](${tunnel.url})\n\n` +
-            "📝 *Instructions:*\n" +
-            "1. Enter the dashboard link.\n" +
-            "2. Login/Join the meeting.\n" +
-            "3. Send `/view` to see the screen.\n" +
-            "4. Send `/record` to start capture.", { parse_mode: 'Markdown' });
+        // 3. Send Tunnel Link (Retrying if conflict)
+        async function sendTunnel() {
+            try {
+                await bot.telegram.sendMessage(groupId,
+                    "✅ *Visual Engine Booted (GitHub Actions)*\n" +
+                    "━━━━━━━━━━━━━━━━━━━━━━\n" +
+                    "🔗 *Secure Control Tunnel:*\n" +
+                    `[ACCESS DASHBOARD](${tunnel.url})\n\n` +
+                    "📝 *Instructions:*\n" +
+                    "1. Enter the dashboard link.\n" +
+                    "2. Login/Join the meeting.\n" +
+                    "3. Send `/view` to see the screen.\n" +
+                    "4. Send `/record` to start capture.", { parse_mode: 'Markdown' });
+            } catch (err) {
+                if (err.response && err.response.error_code === 409) {
+                    await new Promise(r => setTimeout(r, 5000));
+                    return sendTunnel();
+                }
+                throw err;
+            }
+        }
+        await sendTunnel();
 
         // 4. SMART COMMANDS
-
-        // /view - Real-time screenshot
         bot.command('view', async (ctx) => {
             try {
                 const screenshotPath = await browserManager.takeScreenshot();
@@ -46,7 +67,6 @@ async function run() {
             }
         });
 
-        // /record - HD Capture
         bot.command('record', async (ctx) => {
             if (isRecording) {
                 return ctx.replyWithMarkdown("⚠️ *System Alert:* A recording is already in progress. (Class recording chal rhi hai)");
@@ -62,7 +82,6 @@ async function run() {
             }
         });
 
-        // /stop - Finalize & Delivery
         bot.command('stop', async (ctx) => {
             if (!isRecording) {
                 return ctx.replyWithMarkdown("⚠️ *System Alert:* No active recording found to stop. (Recording shuru he nhi hui hai)");
@@ -90,16 +109,28 @@ async function run() {
             }
         });
 
-        // Use dropPendingUpdates to take over the session from the main bot on Render
-        bot.launch({
-            dropPendingUpdates: true
-        });
-
-        console.log("Runner Bot is listening...");
+        // Robust Launch with Retry for 409 Conflict
+        async function startBot() {
+            try {
+                await bot.launch({ dropPendingUpdates: true });
+                console.log("Runner Bot is listening...");
+            } catch (err) {
+                if (err.response && err.response.error_code === 409) {
+                    console.log("Conflict detected, retrying bot launch in 5s...");
+                    await new Promise(r => setTimeout(r, 5000));
+                    return startBot();
+                }
+                throw err;
+            }
+        }
+        await startBot();
 
     } catch (error) {
         console.error("Runner Error:", error);
-        await bot.telegram.sendMessage(groupId, `🚨 *Runner Failure:* ${error.message}`, { parse_mode: 'Markdown' });
+        // Try to notify failure even if conflict
+        try {
+            await bot.telegram.sendMessage(groupId, `🚨 *Runner Failure:* ${error.message}`, { parse_mode: 'Markdown' });
+        } catch (e) {}
         process.exit(1);
     }
 }
