@@ -1,10 +1,8 @@
 const puppeteer = require('puppeteer-core');
-const localtunnel = require('localtunnel');
-const { exec } = require('child_process');
+const { exec, spawn } = require('child_process');
 const path = require('path');
 const logger = require('../utils/logger');
 const fs = require('fs-extra');
-const axios = require('axios');
 
 let browser = null;
 let page = null;
@@ -18,27 +16,41 @@ async function launchMeeting(url) {
     try {
         logger.info("Connecting to pre-initialized Virtual Display & Visual Bridge...");
 
-        // Ensure DISPLAY is set (should be set by workflow, but just in case)
         process.env.DISPLAY = ':99';
 
-        // 1. Setup LocalTunnel
-        logger.info("Establishing LocalTunnel...");
+        // 1. Setup Serveo Tunnel (Unlimited & No IP check)
+        logger.info("Establishing Serveo Unlimited Tunnel...");
         try {
-            // Get Public IP for LocalTunnel verification bypass
-            const response = await axios.get('https://api.ipify.org?format=json').catch(() => ({ data: { ip: "Unknown" } }));
-            const publicIp = response.data.ip;
-            logger.info(`Runner Public IP: ${publicIp} (Use this if prompted by LocalTunnel)`);
-
-            tunnelInstance = await localtunnel({ port: 6080 });
-            tunnelUrl = tunnelInstance.url;
-
-            logger.info(`SUCCESS: LocalTunnel established: ${tunnelUrl}`);
-
-            tunnelInstance.on('close', () => {
-                logger.info("LocalTunnel connection closed.");
+            // Start Serveo tunnel via SSH
+            tunnelInstance = spawn('ssh', ['-o', 'StrictHostKeyChecking=no', '-R', '80:localhost:6080', 'serveo.net'], {
+                detached: false
             });
+
+            tunnelUrl = await new Promise((resolve, reject) => {
+                let found = false;
+                const timeout = setTimeout(() => {
+                    if (!found) resolve("http://localhost:6080");
+                }, 15000);
+
+                tunnelInstance.stdout.on('data', (data) => {
+                    const msg = data.toString();
+                    const match = msg.match(/https:\/\/[a-z0-9-]+\.serveo\.net/i);
+                    if (match) {
+                        found = true;
+                        clearTimeout(timeout);
+                        resolve(match[0]);
+                    }
+                });
+
+                tunnelInstance.on('error', (err) => {
+                    logger.error(`Serveo Process Error: ${err.message}`);
+                    resolve("http://localhost:6080");
+                });
+            });
+
+            logger.info(`SUCCESS: Serveo tunnel established: ${tunnelUrl}`);
         } catch (err) {
-            logger.error(`LocalTunnel failed: ${err.message}`);
+            logger.error(`Serveo failed: ${err.message}`);
             tunnelUrl = "http://localhost:6080";
         }
 
@@ -76,6 +88,17 @@ async function launchMeeting(url) {
     }
 }
 
+/**
+ * Capture a real-time screenshot of the meeting
+ */
+async function takeScreenshot() {
+    if (!page) throw new Error("Browser session not active.");
+    const screenshotPath = path.join(__dirname, '../../output/screenshot.png');
+    await fs.ensureDir(path.dirname(screenshotPath));
+    await page.screenshot({ path: screenshotPath });
+    return screenshotPath;
+}
+
 async function injectLoadingOverlay(page) {
     const overlayPath = path.join(__dirname, 'overlay.html');
     if (fs.existsSync(overlayPath)) {
@@ -104,8 +127,8 @@ async function injectLoadingOverlay(page) {
 
 async function closeBrowser() {
     if (browser) await browser.close();
-    if (tunnelInstance) tunnelInstance.close();
-    // Cleanup Xvfb only if needed, but usually Action cleanup handles it
+    if (tunnelInstance) tunnelInstance.kill();
+    exec('pkill Xvfb');
 }
 
-module.exports = { launchMeeting, closeBrowser, getPage: () => page };
+module.exports = { launchMeeting, takeScreenshot, closeBrowser, getPage: () => page };
