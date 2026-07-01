@@ -22,19 +22,22 @@ async function launchMeeting(url) {
 
         logger.info("Starting visual Ngrok tunnel...");
 
-        // Use a unique name for each tunnel to avoid conflicts
-        const tunnelName = `ghost_${Date.now()}`;
+        // Use a completely unique ID for each tunnel to prevent "already exists" errors
+        const uniqueId = Math.random().toString(36).substring(2, 10);
+        const tunnelName = `ghost_${uniqueId}_${Date.now()}`;
 
         try {
             ngrokUrl = await ngrok.connect({
                 proto: 'http',
-                addr: 6080,
+                addr: 6080, // noVNC default port
                 authtoken: process.env.NGROK_AUTH_TOKEN,
-                name: tunnelName
+                name: tunnelName,
+                bind_tls: true
             });
+            logger.info(`Ngrok tunnel established: ${ngrokUrl}`);
         } catch (err) {
-            logger.warn("Primary Ngrok attempt failed, trying cleanup...");
-            await ngrok.kill();
+            logger.warn(`Ngrok primary attempt failed (${err.message}), trying dynamic fallback...`);
+            // Fallback: Let Ngrok auto-generate a name entirely
             ngrokUrl = await ngrok.connect({
                 proto: 'http',
                 addr: 6080,
@@ -100,7 +103,7 @@ async function injectLoadingOverlay(page) {
             div.innerHTML = html;
             document.body.appendChild(div);
 
-            // Remove overlay after 10 seconds or when meeting loads
+            // Remove overlay after 15 seconds or when meeting loads
             setTimeout(() => {
                 const el = document.getElementById('ghost-overlay-container');
                 if (el) el.style.display = 'none';
@@ -115,8 +118,10 @@ async function closeBrowser() {
         browser = null;
     }
     if (ngrokUrl) {
-        await ngrok.disconnect();
-        await ngrok.kill();
+        try {
+            await ngrok.disconnect();
+            await ngrok.kill();
+        } catch (e) {}
     }
     exec('pkill Xvfb');
     exec('pkill x11vnc');
