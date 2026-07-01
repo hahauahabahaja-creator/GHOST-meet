@@ -27,7 +27,7 @@ jobs:
         run: |
           sudo apt-get update --fix-missing
           sudo apt-get install -y --no-install-recommends \
-            xvfb ffmpeg pulseaudio dbus-x11 google-chrome-stable
+            xvfb ffmpeg pulseaudio dbus-x11 google-chrome-stable x11vnc novnc
 
       - name: Fast Node Install
         run: npm install --no-audit --no-fund --quiet --no-package-lock

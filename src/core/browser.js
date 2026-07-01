@@ -14,12 +14,26 @@ let ngrokUrl = null;
  */
 async function launchMeeting(url) {
     try {
-        logger.info("Starting Xvfb virtual display :99...");
+        logger.info("Initializing Virtual Display & Visual Bridge...");
+
+        // 1. Cleanup & Start Xvfb
         exec('pkill Xvfb');
         exec('Xvfb :99 -screen 0 1920x1080x24 &');
         process.env.DISPLAY = ':99';
+        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for Xvfb
 
-        logger.info("Starting visual Ngrok tunnel...");
+        // 2. Start x11vnc (VNC Server)
+        logger.info("Starting VNC Server...");
+        exec('x11vnc -display :99 -forever -shared -nopw -bg -quiet');
+
+        // 3. Start noVNC Bridge (Web-based VNC) on port 6080
+        logger.info("Starting noVNC Bridge...");
+        // In Ubuntu/GitHub Actions, the novnc_proxy is located here
+        exec('/usr/share/novnc/utils/novnc_proxy --vnc localhost:5900 --listen 6080 &');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // 4. Setup Ngrok
+        logger.info("Establishing Secure Tunnel...");
 
         // 🛠 DEBUG SENSOR & FLEXIBLE TOKEN
         const token1 = process.env.NGROK_AUTH_TOKEN || "";
@@ -33,19 +47,20 @@ async function launchMeeting(url) {
             throw new Error(`FATAL: Ngrok Token is missing or too short! Length: ${finalToken.length}. Please re-add to GitHub Secrets.`);
         }
 
-        // 1. Force kill any existing ngrok processes
+        // Force kill any existing ngrok processes
         try {
             await ngrok.kill();
             logger.info("Stray Ngrok processes cleared.");
         } catch (e) {}
 
-        // 2. Establishing tunnel with absolute hard-reset
+        // Establishing tunnel
         try {
-            // Using explicit authtoken in connect to ensure environment variable usage
+            // Set the authtoken globally before connecting
+            await ngrok.authtoken(finalToken);
+
             ngrokUrl = await ngrok.connect({
                 proto: 'http',
-                addr: 6080, // noVNC default port
-                authtoken: finalToken
+                addr: '6080'
             });
             logger.info(`SUCCESS: Ngrok tunnel established: ${ngrokUrl}`);
         } catch (err) {
