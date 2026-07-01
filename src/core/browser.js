@@ -21,23 +21,30 @@ async function launchMeeting(url) {
 
         logger.info("Starting visual Ngrok tunnel...");
 
-        // 1. Force kill any existing ngrok processes to clear the environment
+        // 🛠 FLEXIBLE TOKEN DETECTION
+        // Supports both NGROK_AUTH_TOKEN and NGROK_AUTHTOKEN to prevent naming confusion
+        const activeToken = process.env.NGROK_AUTH_TOKEN || process.env.NGROK_AUTHTOKEN;
+
+        if (!activeToken) {
+            throw new Error("FATAL: Ngrok Token not found in Environment. Ensure it is set in GitHub Secrets as NGROK_AUTH_TOKEN.");
+        }
+
+        // 1. Force kill any existing ngrok processes
         try {
             await ngrok.kill();
         } catch (e) {}
 
-        // 2. Simple, clean connection with the NEW token
-        // We use the most basic configuration to avoid account-level policy conflicts
+        // 2. Establishing tunnel with flexible token
         try {
             ngrokUrl = await ngrok.connect({
                 proto: 'http',
                 addr: 6080, // noVNC default port
-                authtoken: process.env.NGROK_AUTH_TOKEN
+                authtoken: activeToken
             });
             logger.info(`Ngrok tunnel established: ${ngrokUrl}`);
         } catch (err) {
             logger.error(`Ngrok connection failed: ${err.message}`);
-            throw new Error(`Ngrok Error: ${err.message}. Ensure your token is valid and email is verified.`);
+            throw new Error(`Ngrok Error: ${err.message}. Check if your token is valid and dashboard is clear.`);
         }
 
         logger.info(`Launching Puppeteer on DISPLAY :99 for URL: ${url}`);
