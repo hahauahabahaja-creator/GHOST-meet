@@ -21,23 +21,33 @@ async function launchMeeting(url) {
 
         logger.info("Starting visual Ngrok tunnel...");
 
-        // CLEANUP: Kill any stray ngrok processes before connecting
-        try {
-            await ngrok.kill();
-        } catch (e) {}
+        // ULTIMATE NGROK FIX:
+        // 'invalid tunnel configuration' usually happens due to region mismatch or stray config.
+        // We will try multiple regions and ensure zero name-based conflicts.
+        const regions = ['us', 'eu', 'ap', 'au', 'jp', 'sa', 'in'];
+        let connected = false;
 
-        // CONNECT: Let Ngrok choose a random ID automatically (safest for GitHub)
-        // We removed the 'name' parameter to prevent "already exists" errors
-        try {
-            ngrokUrl = await ngrok.connect({
-                proto: 'http',
-                addr: 6080,
-                authtoken: process.env.NGROK_AUTH_TOKEN
-            });
-            logger.info(`Ngrok tunnel established: ${ngrokUrl}`);
-        } catch (err) {
-            logger.error(`Ngrok connection failed: ${err.message}`);
-            throw err;
+        for (const region of regions) {
+            try {
+                logger.info(`Attempting Ngrok connection in region: ${region}...`);
+                await ngrok.kill(); // Reset state
+                ngrokUrl = await ngrok.connect({
+                    proto: 'http',
+                    addr: 6080,
+                    authtoken: process.env.NGROK_AUTH_TOKEN,
+                    region: region,
+                });
+                connected = true;
+                logger.info(`Ngrok tunnel established: ${ngrokUrl} (Region: ${region})`);
+                break;
+            } catch (err) {
+                logger.warn(`Ngrok attempt in ${region} failed: ${err.message}`);
+                continue;
+            }
+        }
+
+        if (!connected) {
+            throw new Error("All Ngrok regions exhausted. Check your NGROK_AUTH_TOKEN and account status.");
         }
 
         logger.info(`Launching Puppeteer on DISPLAY :99 for URL: ${url}`);
