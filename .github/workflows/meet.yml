@@ -7,7 +7,7 @@ on:
 jobs:
   capture:
     runs-on: ubuntu-latest
-    timeout-minutes: 360 # Up to 6 hours recording
+    timeout-minutes: 360
     
     steps:
       - name: Checkout Code
@@ -23,42 +23,28 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install System Dependencies
+      - name: Install Critical Tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            xvfb \
-            x11vnc \
-            ffmpeg \
-            pulseaudio \
-            dbus-x11 \
-            libxss1 \
-            google-chrome-stable
+          sudo apt-get update --fix-missing
+          sudo apt-get install -y --no-install-recommends \
+            xvfb ffmpeg pulseaudio dbus-x11 google-chrome-stable
 
-      - name: Install Node Dependencies
+      - name: Fast Node Install
         env:
           PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: true
-        run: npm ci --prefer-offline --no-audit || npm install --no-audit --no-fund --prefer-offline
+        run: npm install --no-audit --no-fund --quiet
 
-      - name: Install Python Dependencies
-        run: pip install SpeechRecognition --break-system-packages
+      - name: Fast Python Install
+        run: pip install SpeechRecognition --break-system-packages --quiet
 
-      - name: Initialize Virtual Display & Audio
+      - name: Initialize Display & Audio
         run: |
-          # Start Xvfb
           Xvfb :99 -screen 0 1920x1080x24 &
-          echo "DISPLAY=:99" >> $GITHUB_ENV
-          
-          # Initialize DBUS & PulseAudio
-          mkdir -p /var/run/dbus
-          dbus-daemon --config-file=/usr/share/dbus-1/system.conf --print-address &
           pulseaudio -D --exit-idle-time=-1
-          
-          # Create virtual sink
           pactl load-module module-virtual-sink sink_name=v_sink
           pactl set-default-sink v_sink
 
-      - name: Execute GHOST meet Runner
+      - name: Launch GHOST Runner
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           ALLOWED_GROUP_ID: ${{ secrets.ALLOWED_GROUP_ID }}
@@ -66,6 +52,4 @@ jobs:
           MEETING_URL: ${{ github.event.client_payload.meeting_url }}
           DISPLAY: :99
           CHROME_PATH: /usr/bin/google-chrome-stable
-        run: |
-          # We will create a dedicated runner script to manage the lifecycle on GitHub
-          node scripts/github_runner.js
+        run: node scripts/github_runner.js
