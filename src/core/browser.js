@@ -21,8 +21,14 @@ async function launchMeeting(url) {
         process.env.DISPLAY = ':99';
 
         logger.info("Starting visual Ngrok tunnel...");
-        // Note: In a real Render environment, you'd run a VNC server like x11vnc on 5900
-        // and a web interface like noVNC on 6080. We tunnel the VNC web interface.
+        // Ensure old tunnels are disconnected before starting a new one
+        try {
+            await ngrok.disconnect();
+            await ngrok.kill();
+        } catch (e) {
+            // Ignore if nothing to kill
+        }
+
         ngrokUrl = await ngrok.connect({
             proto: 'http',
             addr: 6080, // noVNC default port
