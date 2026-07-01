@@ -1,4 +1,4 @@
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
 const ngrok = require('ngrok');
 const { exec } = require('child_process');
 const path = require('path');

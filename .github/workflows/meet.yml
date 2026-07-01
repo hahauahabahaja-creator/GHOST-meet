@@ -30,9 +30,8 @@ jobs:
             xvfb ffmpeg pulseaudio dbus-x11 google-chrome-stable
 
       - name: Fast Node Install
-        env:
-          PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: true
-        run: npm install --no-audit --no-fund --quiet
+        timeout-minutes: 5
+        run: npm install --no-audit --no-fund --quiet --no-package-lock
 
       - name: Fast Python Install
         run: pip install SpeechRecognition --break-system-packages --quiet

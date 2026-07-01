@@ -7,6 +7,9 @@ const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 const meetingUrl = process.env.MEETING_URL;
 const groupId = process.env.ALLOWED_GROUP_ID;
 
+// Use built-in chrome on GitHub
+process.env.CHROME_PATH = '/usr/bin/google-chrome-stable';
+
 async function run() {
     try {
         console.log(`🚀 Starting GitHub Runner for URL: ${meetingUrl}`);
