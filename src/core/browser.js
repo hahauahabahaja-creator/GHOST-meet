@@ -1,13 +1,15 @@
 const puppeteer = require('puppeteer-core');
-const ngrok = require('ngrok');
+const localtunnel = require('localtunnel');
 const { exec } = require('child_process');
 const path = require('path');
 const logger = require('../utils/logger');
 const fs = require('fs-extra');
+const axios = require('axios');
 
 let browser = null;
 let page = null;
-let ngrokUrl = null;
+let tunnelInstance = null;
+let tunnelUrl = null;
 
 /**
  * Initializes the virtual frame buffer and launches the meeting
@@ -28,49 +30,29 @@ async function launchMeeting(url) {
 
         // 3. Start noVNC Bridge (Web-based VNC) on port 6080
         logger.info("Starting noVNC Bridge...");
-        // In Ubuntu/GitHub Actions, the novnc_proxy is located here
         exec('/usr/share/novnc/utils/novnc_proxy --vnc localhost:5900 --listen 6080 &');
         await new Promise(resolve => setTimeout(resolve, 2000));
 
-        // 4. Setup Ngrok
-        logger.info("Establishing Secure Tunnel...");
-
-        // 🛠 DEBUG SENSOR & FLEXIBLE TOKEN
-        const token1 = process.env.NGROK_AUTH_TOKEN || "";
-        const token2 = process.env.NGROK_AUTHTOKEN || "";
-        const finalToken = token1 || token2;
-
-        logger.info(`Token Sensor - NGROK_AUTH_TOKEN length: ${token1.length}`);
-        logger.info(`Token Sensor - NGROK_AUTHTOKEN length: ${token2.length}`);
-
-        if (!finalToken || finalToken.length < 5) {
-            throw new Error(`FATAL: Ngrok Token is missing or too short! Length: ${finalToken.length}. Please re-add to GitHub Secrets.`);
-        }
-
-        // Force kill any existing ngrok processes
+        // 4. Setup LocalTunnel
+        logger.info("Establishing LocalTunnel...");
         try {
-            await ngrok.kill();
-            logger.info("Stray Ngrok processes cleared.");
-        } catch (e) {}
+            // Get Public IP for LocalTunnel verification bypass
+            const response = await axios.get('https://api.ipify.org?format=json').catch(() => ({ data: { ip: "Unknown" } }));
+            const publicIp = response.data.ip;
+            logger.info(`Runner Public IP: ${publicIp} (Use this if prompted by LocalTunnel)`);
 
-        // Establishing tunnel
-        try {
-            // Set the authtoken globally before connecting
-            await ngrok.authtoken(finalToken);
+            tunnelInstance = await localtunnel({ port: 6080 });
+            tunnelUrl = tunnelInstance.url;
 
-            // In v5 SDK (beta), providing 'proto' inside the object often triggers
-            // "invalid tunnel configuration". Simple addr is preferred.
-            const listener = await ngrok.connect({
-                addr: 6080
+            logger.info(`SUCCESS: LocalTunnel established: ${tunnelUrl}`);
+
+            tunnelInstance.on('close', () => {
+                logger.info("LocalTunnel connection closed.");
             });
-
-            // Handle both legacy string return and v5 Listener object
-            ngrokUrl = typeof listener === 'string' ? listener : (listener.url ? listener.url() : listener);
-
-            logger.info(`SUCCESS: Ngrok tunnel established: ${ngrokUrl}`);
         } catch (err) {
-            logger.error(`Ngrok connection failed: ${err.message}`);
-            throw new Error(`Ngrok Error: ${err.message}. Check Dashboard at https://dashboard.ngrok.com/tunnels/agents`);
+            logger.error(`LocalTunnel failed: ${err.message}`);
+            // Fallback to local URL if tunnel fails
+            tunnelUrl = "http://localhost:6080";
         }
 
         logger.info(`Launching Puppeteer on DISPLAY :99 for URL: ${url}`);
@@ -100,7 +82,7 @@ async function launchMeeting(url) {
         await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
 
         logger.info("Browser session initialized.");
-        return { url: ngrokUrl };
+        return { url: tunnelUrl };
     } catch (error) {
         logger.error("Browser Launch Error:", error);
         throw error;
@@ -135,7 +117,7 @@ async function injectLoadingOverlay(page) {
 
 async function closeBrowser() {
     if (browser) await browser.close();
-    if (ngrokUrl) await ngrok.kill();
+    if (tunnelInstance) tunnelInstance.close();
     exec('pkill Xvfb');
 }
 
