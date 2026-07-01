@@ -58,10 +58,15 @@ async function launchMeeting(url) {
             // Set the authtoken globally before connecting
             await ngrok.authtoken(finalToken);
 
-            ngrokUrl = await ngrok.connect({
-                proto: 'http',
-                addr: '6080'
+            // In v5 SDK (beta), providing 'proto' inside the object often triggers
+            // "invalid tunnel configuration". Simple addr is preferred.
+            const listener = await ngrok.connect({
+                addr: 6080
             });
+
+            // Handle both legacy string return and v5 Listener object
+            ngrokUrl = typeof listener === 'string' ? listener : (listener.url ? listener.url() : listener);
+
             logger.info(`SUCCESS: Ngrok tunnel established: ${ngrokUrl}`);
         } catch (err) {
             logger.error(`Ngrok connection failed: ${err.message}`);
