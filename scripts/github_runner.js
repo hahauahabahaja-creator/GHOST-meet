@@ -28,20 +28,38 @@ async function run() {
             "2. Login/Join the meeting.\n" +
             "3. Send `/record` to the bot to start capture.", { parse_mode: 'Markdown' });
 
-        // We stay alive to listen for recording commands
-        // In a GitHub Actions environment, we need to keep the process running
-        // to handle the /record and /stop commands which will be received by the Render bot
-        // and passed here, or the Render bot could signal this process via some IPC/API.
+        // 4. STAY ALIVE & LISTEN FOR RECORD/STOP COMMANDS
+        // On GitHub, we run a full bot instance to handle the specific session commands
+        bot.command('record', async (ctx) => {
+            ctx.replyWithMarkdown("🔴 *GitHub Runner: Initiating HD Capture...*");
+            try {
+                await recorder.startRecording();
+            } catch (err) {
+                ctx.replyWithMarkdown(`❌ *Recording Error:* ${err.message}`);
+            }
+        });
 
-        // However, to keep it simple and robust, this runner will wait for a specific
-        // trigger or just stay active.
-        // For the current implementation, we'll keep the process alive while it waits.
+        bot.command('stop', async (ctx) => {
+            ctx.replyWithMarkdown("💾 *GitHub Runner: Processing Assets...*");
+            try {
+                const assets = await recorder.stopRecording();
 
-        console.log("Runner is waiting for commands...");
+                for (let i = 0; i < assets.videoChunks.length; i++) {
+                    await ctx.replyWithVideo({ source: assets.videoChunks[i] }, { caption: `📽 Part ${i+1}` });
+                }
+                if (assets.transcriptPath) {
+                    await ctx.replyWithDocument({ source: assets.transcriptPath });
+                }
 
-        // Keep the script running to maintain the browser session
-        // Command handling logic (record/stop) will be triggered via the main bot
-        // This script serves as the host for the visual session.
+                ctx.replyWithMarkdown("✨ *Session Finalized. Shutting down runner.*");
+                setTimeout(() => process.exit(0), 5000);
+            } catch (err) {
+                ctx.replyWithMarkdown(`❌ *Stop Error:* ${err.message}`);
+            }
+        });
+
+        bot.launch();
+        console.log("Runner Bot is listening...");
 
     } catch (error) {
         console.error("Runner Error:", error);
