@@ -1,6 +1,6 @@
 const puppeteer = require('puppeteer-core');
 const localtunnel = require('localtunnel');
-const { exec } = require('child_process');
+const { exec, spawn } = require('child_process');
 const path = require('path');
 const logger = require('../utils/logger');
 const fs = require('fs-extra');
@@ -18,19 +18,36 @@ async function launchMeeting(url) {
     try {
         logger.info("Initializing Virtual Display & Visual Bridge...");
 
-        // 1. Cleanup & Start Xvfb
+        // 1. Cleanup & Start Xvfb properly as a detached process
         exec('pkill Xvfb');
-        exec('Xvfb :99 -screen 0 1920x1080x24 &');
+        exec('pkill x11vnc');
+
+        const xvfb = spawn('Xvfb', [':99', '-screen', '0', '1920x1080x24'], {
+            detached: true,
+            stdio: 'ignore'
+        });
+        xvfb.unref();
+
         process.env.DISPLAY = ':99';
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for Xvfb
+        // Wait longer for Xvfb to be fully ready
+        await new Promise(resolve => setTimeout(resolve, 3000));
 
         // 2. Start x11vnc (VNC Server)
         logger.info("Starting VNC Server...");
-        exec('x11vnc -display :99 -forever -shared -nopw -bg -quiet');
+        const vnc = spawn('x11vnc', ['-display', ':99', '-forever', '-shared', '-nopw', '-bg', '-quiet'], {
+            detached: true,
+            stdio: 'ignore'
+        });
+        vnc.unref();
 
         // 3. Start noVNC Bridge (Web-based VNC) on port 6080
         logger.info("Starting noVNC Bridge...");
-        exec('/usr/share/novnc/utils/novnc_proxy --vnc localhost:5900 --listen 6080 &');
+        const novnc = spawn('/usr/share/novnc/utils/novnc_proxy', ['--vnc', 'localhost:5900', '--listen', '6080'], {
+            detached: true,
+            stdio: 'ignore'
+        });
+        novnc.unref();
+
         await new Promise(resolve => setTimeout(resolve, 2000));
 
         // 4. Setup LocalTunnel
@@ -51,7 +68,6 @@ async function launchMeeting(url) {
             });
         } catch (err) {
             logger.error(`LocalTunnel failed: ${err.message}`);
-            // Fallback to local URL if tunnel fails
             tunnelUrl = "http://localhost:6080";
         }
 
