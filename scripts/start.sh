@@ -1,15 +1,10 @@
 #!/bin/bash
 
-# Initialize DBUS for Pulseaudio
-mkdir -p /var/run/dbus
-dbus-daemon --config-file=/usr/share/dbus-1/system.conf --print-address
+# GHOST meet | Render Bot Start Script
+# Note: Audio/Xvfb is now handled by GitHub Actions.
+# Render only needs to run the Telegram Bot.
 
-# Start Pulseaudio in the background
-pulseaudio -D --exit-idle-time=-1
-
-# Create a virtual sink to capture audio
-pactl load-module module-virtual-sink sink_name=v_sink
-pactl set-default-sink v_sink
+echo "🚀 Starting GHOST meet Bot Terminal..."
 
 # Start the Node.js application
 npm start
