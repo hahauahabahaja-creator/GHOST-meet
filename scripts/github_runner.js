@@ -1,7 +1,7 @@
 const { Telegraf } = require('telegraf');
 const browserManager = require('../src/core/browser');
 const recorder = require('../src/core/recorder');
-const logger = require('../utils/logger');
+const logger = require('../src/utils/logger');
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 const meetingUrl = process.env.MEETING_URL;
