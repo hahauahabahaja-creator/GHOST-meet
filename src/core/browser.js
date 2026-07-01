@@ -21,19 +21,26 @@ async function launchMeeting(url) {
         process.env.DISPLAY = ':99';
 
         logger.info("Starting visual Ngrok tunnel...");
-        // Ensure old tunnels are disconnected before starting a new one
-        try {
-            await ngrok.disconnect();
-            await ngrok.kill();
-        } catch (e) {
-            // Ignore if nothing to kill
-        }
 
-        ngrokUrl = await ngrok.connect({
-            proto: 'http',
-            addr: 6080, // noVNC default port
-            authtoken: process.env.NGROK_AUTH_TOKEN
-        });
+        // Use a unique name for each tunnel to avoid conflicts
+        const tunnelName = `ghost_${Date.now()}`;
+
+        try {
+            ngrokUrl = await ngrok.connect({
+                proto: 'http',
+                addr: 6080,
+                authtoken: process.env.NGROK_AUTH_TOKEN,
+                name: tunnelName
+            });
+        } catch (err) {
+            logger.warn("Primary Ngrok attempt failed, trying cleanup...");
+            await ngrok.kill();
+            ngrokUrl = await ngrok.connect({
+                proto: 'http',
+                addr: 6080,
+                authtoken: process.env.NGROK_AUTH_TOKEN
+            });
+        }
 
         logger.info(`Launching Puppeteer on DISPLAY :99 for URL: ${url}`);
         browser = await puppeteer.launch({

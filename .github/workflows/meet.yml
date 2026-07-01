@@ -36,7 +36,9 @@ jobs:
             google-chrome-stable
 
       - name: Install Node Dependencies
-        run: npm install
+        env:
+          PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: true
+        run: npm install --no-audit --no-fund
 
       - name: Install Python Dependencies
         run: pip install SpeechRecognition --break-system-packages

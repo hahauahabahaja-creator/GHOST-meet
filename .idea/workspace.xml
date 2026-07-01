@@ -4,7 +4,10 @@
     <option name="autoReloadType" value="NONE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9b7ef615-1cd9-4ed1-bb1e-ec8527cdc7c2" name="Changes" comment="" />
+    <list default="true" id="9b7ef615-1cd9-4ed1-bb1e-ec8527cdc7c2" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.github/workflows/meet.yml" beforeDir="false" afterPath="$PROJECT_DIR$/.github/workflows/meet.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/browser.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/browser.js" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
