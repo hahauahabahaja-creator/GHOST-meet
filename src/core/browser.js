@@ -21,30 +21,36 @@ async function launchMeeting(url) {
 
         logger.info("Starting visual Ngrok tunnel...");
 
-        // 🛠 FLEXIBLE TOKEN DETECTION
-        // Supports both NGROK_AUTH_TOKEN and NGROK_AUTHTOKEN to prevent naming confusion
-        const activeToken = process.env.NGROK_AUTH_TOKEN || process.env.NGROK_AUTHTOKEN;
+        // 🛠 DEBUG SENSOR & FLEXIBLE TOKEN
+        const token1 = process.env.NGROK_AUTH_TOKEN || "";
+        const token2 = process.env.NGROK_AUTHTOKEN || "";
+        const finalToken = token1 || token2;
 
-        if (!activeToken) {
-            throw new Error("FATAL: Ngrok Token not found in Environment. Ensure it is set in GitHub Secrets as NGROK_AUTH_TOKEN.");
+        logger.info(`Token Sensor - NGROK_AUTH_TOKEN length: ${token1.length}`);
+        logger.info(`Token Sensor - NGROK_AUTHTOKEN length: ${token2.length}`);
+
+        if (!finalToken || finalToken.length < 5) {
+            throw new Error(`FATAL: Ngrok Token is missing or too short! Length: ${finalToken.length}. Please re-add to GitHub Secrets.`);
         }
 
         // 1. Force kill any existing ngrok processes
         try {
             await ngrok.kill();
+            logger.info("Stray Ngrok processes cleared.");
         } catch (e) {}
 
-        // 2. Establishing tunnel with flexible token
+        // 2. Establishing tunnel with absolute hard-reset
         try {
+            // Using explicit authtoken in connect to ensure environment variable usage
             ngrokUrl = await ngrok.connect({
                 proto: 'http',
                 addr: 6080, // noVNC default port
-                authtoken: activeToken
+                authtoken: finalToken
             });
-            logger.info(`Ngrok tunnel established: ${ngrokUrl}`);
+            logger.info(`SUCCESS: Ngrok tunnel established: ${ngrokUrl}`);
         } catch (err) {
             logger.error(`Ngrok connection failed: ${err.message}`);
-            throw new Error(`Ngrok Error: ${err.message}. Check if your token is valid and dashboard is clear.`);
+            throw new Error(`Ngrok Error: ${err.message}. Check Dashboard at https://dashboard.ngrok.com/tunnels/agents`);
         }
 
         logger.info(`Launching Puppeteer on DISPLAY :99 for URL: ${url}`);
