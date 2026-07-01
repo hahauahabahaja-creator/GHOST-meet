@@ -30,7 +30,6 @@ jobs:
             xvfb ffmpeg pulseaudio dbus-x11 google-chrome-stable
 
       - name: Fast Node Install
-        timeout-minutes: 5
         run: npm install --no-audit --no-fund --quiet --no-package-lock
 
       - name: Fast Python Install
@@ -47,7 +46,9 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           ALLOWED_GROUP_ID: ${{ secrets.ALLOWED_GROUP_ID }}
+          # 🛠 Mapping BOTH possible naming conventions for the token
           NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+          NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
           MEETING_URL: ${{ github.event.client_payload.meeting_url }}
           DISPLAY: :99
           CHROME_PATH: /usr/bin/google-chrome-stable
