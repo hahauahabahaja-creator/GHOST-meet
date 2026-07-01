@@ -38,7 +38,7 @@ jobs:
       - name: Install Node Dependencies
         env:
           PUPPETEER_SKIP_CHROMIUM_DOWNLOAD: true
-        run: npm install --no-audit --no-fund
+        run: npm ci --prefer-offline --no-audit || npm install --no-audit --no-fund --prefer-offline
 
       - name: Install Python Dependencies
         run: pip install SpeechRecognition --break-system-packages
