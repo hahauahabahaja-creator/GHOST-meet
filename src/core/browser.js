@@ -29,19 +29,27 @@ async function launchMeeting(url) {
             tunnelUrl = await new Promise((resolve, reject) => {
                 let found = false;
                 const timeout = setTimeout(() => {
-                    if (!found) resolve("http://localhost:6080");
-                }, 20000); // Increased timeout
+                    if (!found) {
+                        logger.warn("Serveo URL extraction timed out. Using fallback.");
+                        resolve("http://localhost:6080");
+                    }
+                }, 20000);
 
-                tunnelInstance.stdout.on('data', (data) => {
+                // Serveo sometimes prints the URL on stderr
+                const handleOutput = (data) => {
                     const msg = data.toString();
-                    // Better regex to capture the specific tunnel URL and ignore generic serveo.net links
+                    logger.info(`[SERVEO DEBUG] ${msg}`); // Log output for debugging
+
                     const match = msg.match(/https:\/\/[a-z0-9-]+\.serveo\.net/i);
                     if (match && !match[0].includes('console.serveo.net')) {
                         found = true;
                         clearTimeout(timeout);
                         resolve(match[0]);
                     }
-                });
+                };
+
+                tunnelInstance.stdout.on('data', handleOutput);
+                tunnelInstance.stderr.on('data', handleOutput);
 
                 tunnelInstance.on('error', (err) => {
                     logger.error(`Serveo Process Error: ${err.message}`);
@@ -82,7 +90,13 @@ async function launchMeeting(url) {
         await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
 
         logger.info("Browser session initialized.");
-        return { url: tunnelUrl };
+
+        // Generate One-Click Link
+        const vncPass = process.env.VNC_PASSWORD || "";
+        const oneClickUrl = `${tunnelUrl}/vnc_lite.html?autoconnect=true&password=${vncPass}`;
+        logger.info(`Final Dashboard URL: ${oneClickUrl}`);
+
+        return { url: oneClickUrl };
     } catch (error) {
         logger.error("Browser Launch Error:", error);
         throw error;

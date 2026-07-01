@@ -69,6 +69,7 @@ jobs:
           NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
           NGROK_AUTHTOKEN: ${{ secrets.NGROK_AUTHTOKEN }}
           MEETING_URL: ${{ github.event.client_payload.meeting_url }}
+          VNC_PASSWORD: ${{ secrets.VNC_PASSWORD }}
           DISPLAY: :99
           CHROME_PATH: /usr/bin/google-chrome-stable
         run: node scripts/github_runner.js

@@ -16,13 +16,17 @@ async function run() {
     try {
         console.log(`🚀 Starting GitHub Runner for URL: ${meetingUrl}`);
 
-        // 1. Notify Group (Retrying if conflict)
+        // 1. Force Takeover & Notify Group
         async function notifyStart() {
             try {
+                // Clear any existing webhook/polling from Render bot
+                await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+                await new Promise(r => setTimeout(r, 2000));
+
                 await bot.telegram.sendMessage(groupId, "🛸 *GHOST meet Runner Active*\n━━━━━━━━━━━━━━━━━━━━━━\nInitializing 7GB High-Performance Engine...", { parse_mode: 'Markdown' });
             } catch (err) {
                 if (err.response && err.response.error_code === 409) {
-                    console.log("Conflict during notify, waiting 5s...");
+                    console.log("Conflict during notify, retrying takeover in 5s...");
                     await new Promise(r => setTimeout(r, 5000));
                     return notifyStart();
                 }
@@ -34,19 +38,19 @@ async function run() {
         // 2. Launch Browser
         const tunnel = await browserManager.launchMeeting(meetingUrl);
 
-        // 3. Send Tunnel Link (Retrying if conflict)
+        // 3. Send One-Click Tunnel Link
         async function sendTunnel() {
             try {
                 await bot.telegram.sendMessage(groupId,
                     "✅ *Visual Engine Booted (GitHub Actions)*\n" +
                     "━━━━━━━━━━━━━━━━━━━━━━\n" +
-                    "🔗 *Secure Control Tunnel:*\n" +
+                    "🔗 *Secure One-Click Link:*\n" +
                     `[ACCESS DASHBOARD](${tunnel.url})\n\n` +
                     "📝 *Instructions:*\n" +
-                    "1. Enter the dashboard link.\n" +
-                    "2. Login/Join the meeting.\n" +
-                    "3. Send `/view` to see the screen.\n" +
-                    "4. Send `/record` to start capture.", { parse_mode: 'Markdown' });
+                    "1. Click the link (Logs in automatically).\n" +
+                    "2. Handle meeting permissions.\n" +
+                    "3. Send `/view` to check class.\n" +
+                    "4. Send `/record` to start.", { parse_mode: 'Markdown' });
             } catch (err) {
                 if (err.response && err.response.error_code === 409) {
                     await new Promise(r => setTimeout(r, 5000));
@@ -127,7 +131,6 @@ async function run() {
 
     } catch (error) {
         console.error("Runner Error:", error);
-        // Try to notify failure even if conflict
         try {
             await bot.telegram.sendMessage(groupId, `🚨 *Runner Failure:* ${error.message}`, { parse_mode: 'Markdown' });
         } catch (e) {}
