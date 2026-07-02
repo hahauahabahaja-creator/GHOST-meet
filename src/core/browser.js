@@ -35,12 +35,10 @@ async function launchMeeting(url) {
                     }
                 }, 20000);
 
-                // Serveo sometimes prints the URL on stderr
                 const handleOutput = (data) => {
                     const msg = data.toString();
-                    logger.info(`[SERVEO DEBUG] ${msg}`); // Log output for debugging
+                    logger.info(`[SERVEO DEBUG] ${msg}`);
 
-                    // Improved regex to handle both serveo.net and serveousercontent.com
                     const match = msg.match(/https:\/\/[a-z0-9.-]+\.(serveo\.net|serveousercontent\.com)/i);
                     if (match && !match[0].includes('console.serveo.net')) {
                         found = true;
@@ -64,7 +62,7 @@ async function launchMeeting(url) {
             tunnelUrl = "http://localhost:6080";
         }
 
-        logger.info(`Launching Puppeteer on DISPLAY :99 for URL: ${url}`);
+        logger.info(`Launching Stealth Puppeteer on DISPLAY :99 for URL: ${url}`);
         browser = await puppeteer.launch({
             headless: false,
             executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome-stable',
@@ -78,17 +76,27 @@ async function launchMeeting(url) {
                 '--autoplay-policy=no-user-gesture-required',
                 '--use-fake-ui-for-media-stream',
                 '--use-fake-device-for-media-stream',
-                '--display=:99'
+                '--display=:99',
+                // 🛠 FIX ZOOM ISSUES
+                '--force-device-scale-factor=1',
+                '--high-dpi-support=1',
+                // 🛡 STEALTH MODE: Bypass Google Detection
+                '--disable-blink-features=AutomationControlled',
+                '--disable-web-security',
+                '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
             ],
-            defaultViewport: {
-                width: 1920,
-                height: 1080
-            }
+            defaultViewport: null // Use full Xvfb resolution
         });
 
         page = await browser.newPage();
+
+        // 🛡 Further Stealth: Remove webdriver property
+        await page.evaluateOnNewDocument(() => {
+            Object.defineProperty(navigator, 'webdriver', { get: () => false });
+        });
+
         await injectLoadingOverlay(page);
-        await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 90000 });
 
         logger.info("Browser session initialized.");
 
