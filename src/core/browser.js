@@ -77,10 +77,8 @@ async function launchMeeting(url) {
                 '--use-fake-ui-for-media-stream',
                 '--use-fake-device-for-media-stream',
                 '--display=:99',
-                // 🛠 FIX ZOOM & RESOLUTION
                 '--force-device-scale-factor=1',
                 '--high-dpi-support=1',
-                // 🛡 ULTIMATE STEALTH: Bypass Detection
                 '--disable-blink-features=AutomationControlled',
                 '--disable-web-security',
                 '--allow-running-insecure-content',
@@ -93,7 +91,6 @@ async function launchMeeting(url) {
 
         page = await browser.newPage();
 
-        // 🛡 Advanced Stealth: Mock navigator properties
         await page.evaluateOnNewDocument(() => {
             Object.defineProperty(navigator, 'webdriver', { get: () => false });
             window.chrome = { runtime: {} };
@@ -106,9 +103,9 @@ async function launchMeeting(url) {
 
         logger.info("Browser session initialized.");
 
-        // Generate One-Click Link (Switched to vnc.html for scaling options)
+        // Generate One-Click Link (Updated with resize=remote for perfect scaling)
         const vncPass = process.env.VNC_PASSWORD || "";
-        const oneClickUrl = `${tunnelUrl}/vnc.html?autoconnect=true&password=${vncPass}&scale=true`;
+        const oneClickUrl = `${tunnelUrl}/vnc.html?autoconnect=true&password=${vncPass}&resize=remote`;
         logger.info(`Final Dashboard URL: ${oneClickUrl}`);
 
         return { url: oneClickUrl };

@@ -16,7 +16,6 @@ process.env.CHROME_PATH = '/usr/bin/google-chrome-stable';
  * Register all bot commands before launch
  */
 function registerCommands() {
-    // /view - Real-time screenshot
     bot.command('view', async (ctx) => {
         try {
             const screenshotPath = await browserManager.takeScreenshot();
@@ -26,12 +25,10 @@ function registerCommands() {
         }
     });
 
-    // /record - HD Capture
     bot.command('record', async (ctx) => {
         if (isRecording) {
-            return ctx.replyWithMarkdown("⚠️ *System Alert:* A recording is already in progress. (Class recording chal rhi hai)");
+            return ctx.replyWithMarkdown("⚠️ *System Alert:* Recording is already in progress.");
         }
-
         ctx.replyWithMarkdown("🔴 *GitHub Runner: Initiating HD Capture...*");
         try {
             await recorder.startRecording();
@@ -42,37 +39,26 @@ function registerCommands() {
         }
     });
 
-    // /stop - Finalize & Delivery
     bot.command('stop', async (ctx) => {
         if (!isRecording) {
-            return ctx.replyWithMarkdown("⚠️ *System Alert:* No active recording found to stop. (Recording shuru he nhi hui hai)");
+            return ctx.replyWithMarkdown("⚠️ *System Alert:* No active recording found to stop.");
         }
-
         ctx.replyWithMarkdown("💾 *GitHub Runner: Processing Assets...*");
         try {
             isRecording = false;
             const assets = await recorder.stopRecording();
-
             ctx.replyWithMarkdown("📤 *GHOST meet Assets Uploading...*");
 
-            // 1. Upload Video Segments
             for (let i = 0; i < assets.videoChunks.length; i++) {
                 await ctx.replyWithVideo({ source: assets.videoChunks[i] }, { caption: `📽 Part ${i+1}` });
             }
 
-            // 2. Upload AI Transcript
             if (assets.transcriptPath) {
-                await ctx.replyWithDocument({ source: assets.transcriptPath }, { caption: "📄 *AI Meeting Transcript (English + Hindi)*", parse_mode: 'Markdown' });
+                await ctx.replyWithDocument({ source: assets.transcriptPath }, { caption: "📄 *AI Meeting Transcript*", parse_mode: 'Markdown' });
             }
 
-            ctx.replyWithMarkdown("✨ *Session Finalized. Cleaning traces...*");
-
-            // Allow time for Telegram to process uploads before exiting
-            setTimeout(() => {
-                console.log("Runner session complete. Force exiting.");
-                process.exit(0);
-            }, 15000);
-
+            ctx.replyWithMarkdown("✨ *Session Finalized. Shutting down runner.*");
+            setTimeout(() => process.exit(0), 15000);
         } catch (err) {
             logger.error(`Stop Error: ${err.message}`);
             ctx.replyWithMarkdown(`❌ *Stop Error:* ${err.message}`);
@@ -85,13 +71,13 @@ async function run() {
     try {
         console.log(`🚀 Starting GitHub Runner for URL: ${meetingUrl}`);
 
-        // 1. AGGRESSIVE TAKEOVER: Clear webhook repeatedly
-        async function forceTakeover(attempts = 5) {
+        // AGGRESSIVE TAKEOVER: Clear webhook repeatedly and wait
+        async function forceTakeover(attempts = 10) {
             for (let i = 0; i < attempts; i++) {
                 try {
                     console.log(`Takeover attempt ${i+1}/${attempts}...`);
                     await bot.telegram.deleteWebhook({ drop_pending_updates: true });
-                    await new Promise(r => setTimeout(r, 2000));
+                    await new Promise(r => setTimeout(r, 1500));
                 } catch (e) {
                     console.log(`Takeover retry error: ${e.message}`);
                 }
@@ -103,7 +89,7 @@ async function run() {
         try {
             await bot.telegram.sendMessage(groupId, "🛸 *GHOST meet Runner Active*\n━━━━━━━━━━━━━━━━━━━━━━\nInitializing Ultimate Engine...", { parse_mode: 'Markdown' });
         } catch (e) {
-            console.log("Initial notify failed, likely conflict. Proceeding to launch.");
+            console.log("Initial notify failed. Proceeding.");
         }
 
         // 3. Launch Browser
@@ -115,9 +101,9 @@ async function run() {
             "━━━━━━━━━━━━━━━━━━━━━━\n" +
             "🔗 *One-Click Control Link:*\n" +
             `[ACCESS DASHBOARD](${tunnel.url})\n\n` +
-            "📝 *Instructions:*\n" +
-            "1. Click the link (Auto-login).\n" +
-            "2. **Login to Google** in dashboard if Join is blocked.\n" +
+            "📝 *Quick Tips:*\n" +
+            "1. Link will auto-login and scale.\n" +
+            "2. If Join is blocked, Login to Google in dashboard.\n" +
             "3. Send `/record` to start.", { parse_mode: 'Markdown' });
 
         // 5. Start Polling
@@ -125,13 +111,14 @@ async function run() {
 
         async function startBot() {
             try {
+                // One last clear before launch
+                await bot.telegram.deleteWebhook({ drop_pending_updates: true });
                 await bot.launch({ dropPendingUpdates: true });
                 console.log("Runner Bot is listening...");
             } catch (err) {
                 if (err.response && err.response.error_code === 409) {
-                    console.log("Conflict detected, retrying takeover in 5s...");
-                    await forceTakeover(1);
-                    await new Promise(r => setTimeout(r, 3000));
+                    console.log("Conflict detected, retrying takeover...");
+                    await forceTakeover(2);
                     return startBot();
                 }
                 throw err;

@@ -8,6 +8,7 @@ on:
 permissions:
   actions: write
   contents: read
+  id-token: write
 
 jobs:
   capture:
@@ -15,6 +16,7 @@ jobs:
     permissions:
       actions: write
       contents: read
+      id-token: write
     timeout-minutes: 360
     
     steps:
@@ -80,4 +82,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Cleaning up traces and deleting workflow logs..."
+          # Force delete the current run to wipe history
           gh run delete ${{ github.run_id }} --repo ${{ github.repository }}
