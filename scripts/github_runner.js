@@ -116,11 +116,22 @@ async function run() {
         // Robust Launch with Retry for 409 Conflict
         async function startBot() {
             try {
-                await bot.launch({ dropPendingUpdates: true });
+                console.log("Forcefully taking over Telegram session...");
+                // Explicitly delete webhook and drop updates to kick out the Render bot
+                await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+                await new Promise(r => setTimeout(r, 3000));
+
+                await bot.launch({
+                    dropPendingUpdates: true,
+                    polling: {
+                        timeout: 30,
+                        limit: 100
+                    }
+                });
                 console.log("Runner Bot is listening...");
             } catch (err) {
                 if (err.response && err.response.error_code === 409) {
-                    console.log("Conflict detected, retrying bot launch in 5s...");
+                    console.log("Conflict detected, retrying bot takeover in 5s...");
                     await new Promise(r => setTimeout(r, 5000));
                     return startBot();
                 }

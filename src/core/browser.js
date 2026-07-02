@@ -40,7 +40,8 @@ async function launchMeeting(url) {
                     const msg = data.toString();
                     logger.info(`[SERVEO DEBUG] ${msg}`); // Log output for debugging
 
-                    const match = msg.match(/https:\/\/[a-z0-9-]+\.serveo\.net/i);
+                    // Improved regex to handle both serveo.net and serveousercontent.com
+                    const match = msg.match(/https:\/\/[a-z0-9.-]+\.(serveo\.net|serveousercontent\.com)/i);
                     if (match && !match[0].includes('console.serveo.net')) {
                         found = true;
                         clearTimeout(timeout);
