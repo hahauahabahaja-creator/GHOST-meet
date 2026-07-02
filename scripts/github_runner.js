@@ -63,32 +63,21 @@ function registerCommands() {
             // 2. Upload AI Transcript
             if (assets.transcriptPath) {
                 await ctx.replyWithDocument({ source: assets.transcriptPath }, { caption: "📄 *AI Meeting Transcript (English + Hindi)*", parse_mode: 'Markdown' });
-            } else {
-                ctx.replyWithMarkdown("⚠️ *STT Alert:* Transcript could not be generated.");
             }
 
-            ctx.replyWithMarkdown("✨ *Session Finalized. Shutting down runner.*");
+            ctx.replyWithMarkdown("✨ *Session Finalized. Cleaning traces...*");
 
-            // Ensure shutdown after upload
+            // Allow time for Telegram to process uploads before exiting
             setTimeout(() => {
-                console.log("Runner session complete. Exiting.");
+                console.log("Runner session complete. Force exiting.");
                 process.exit(0);
-            }, 10000);
+            }, 15000);
 
         } catch (err) {
             logger.error(`Stop Error: ${err.message}`);
             ctx.replyWithMarkdown(`❌ *Stop Error:* ${err.message}`);
+            process.exit(1);
         }
-    });
-
-    // /help - Show available commands
-    bot.help((ctx) => {
-        ctx.replyWithMarkdown(
-            "📍 *GitHub Runner Commands:*\n" +
-            "• `/view` - Live screenshot\n" +
-            "• `/record` - Start capture\n" +
-            "• `/stop` - Stop & get assets"
-        );
     });
 }
 
@@ -96,50 +85,42 @@ async function run() {
     try {
         console.log(`🚀 Starting GitHub Runner for URL: ${meetingUrl}`);
 
-        // 1. Force Takeover & Notify Group
-        async function notifyStart() {
-            try {
-                await bot.telegram.deleteWebhook({ drop_pending_updates: true });
-                await new Promise(r => setTimeout(r, 2000));
-                await bot.telegram.sendMessage(groupId, "🛸 *GHOST meet Runner Active*\n━━━━━━━━━━━━━━━━━━━━━━\nInitializing 7GB High-Performance Engine...", { parse_mode: 'Markdown' });
-            } catch (err) {
-                if (err.response && err.response.error_code === 409) {
-                    console.log("Conflict during notify, retrying takeover in 5s...");
-                    await new Promise(r => setTimeout(r, 5000));
-                    return notifyStart();
+        // 1. AGGRESSIVE TAKEOVER: Clear webhook repeatedly
+        async function forceTakeover(attempts = 5) {
+            for (let i = 0; i < attempts; i++) {
+                try {
+                    console.log(`Takeover attempt ${i+1}/${attempts}...`);
+                    await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+                    await new Promise(r => setTimeout(r, 2000));
+                } catch (e) {
+                    console.log(`Takeover retry error: ${e.message}`);
                 }
-                throw err;
             }
         }
-        await notifyStart();
+        await forceTakeover();
 
-        // 2. Launch Browser
+        // 2. Notify Group
+        try {
+            await bot.telegram.sendMessage(groupId, "🛸 *GHOST meet Runner Active*\n━━━━━━━━━━━━━━━━━━━━━━\nInitializing Ultimate Engine...", { parse_mode: 'Markdown' });
+        } catch (e) {
+            console.log("Initial notify failed, likely conflict. Proceeding to launch.");
+        }
+
+        // 3. Launch Browser
         const tunnel = await browserManager.launchMeeting(meetingUrl);
 
-        // 3. Send One-Click Tunnel Link
-        async function sendTunnel() {
-            try {
-                await bot.telegram.sendMessage(groupId,
-                    "✅ *Visual Engine Booted (GitHub Actions)*\n" +
-                    "━━━━━━━━━━━━━━━━━━━━━━\n" +
-                    "🔗 *Secure One-Click Link:*\n" +
-                    `[ACCESS DASHBOARD](${tunnel.url})\n\n` +
-                    "📝 *Instructions:*\n" +
-                    "1. Click the link (Auto-login active).\n" +
-                    "2. Send `/view` to check class status.\n" +
-                    "3. Send `/record` to start capture.\n" +
-                    "4. Send `/stop` to finalize session.", { parse_mode: 'Markdown' });
-            } catch (err) {
-                if (err.response && err.response.error_code === 409) {
-                    await new Promise(r => setTimeout(r, 5000));
-                    return sendTunnel();
-                }
-                throw err;
-            }
-        }
-        await sendTunnel();
+        // 4. Send One-Click Link
+        await bot.telegram.sendMessage(groupId,
+            "✅ *Visual Engine Online*\n" +
+            "━━━━━━━━━━━━━━━━━━━━━━\n" +
+            "🔗 *One-Click Control Link:*\n" +
+            `[ACCESS DASHBOARD](${tunnel.url})\n\n` +
+            "📝 *Instructions:*\n" +
+            "1. Click the link (Auto-login).\n" +
+            "2. **Login to Google** in dashboard if Join is blocked.\n" +
+            "3. Send `/record` to start.", { parse_mode: 'Markdown' });
 
-        // 4. Register and Start Bot
+        // 5. Start Polling
         registerCommands();
 
         async function startBot() {
@@ -148,8 +129,9 @@ async function run() {
                 console.log("Runner Bot is listening...");
             } catch (err) {
                 if (err.response && err.response.error_code === 409) {
-                    console.log("Conflict detected, retrying bot launch in 5s...");
-                    await new Promise(r => setTimeout(r, 5000));
+                    console.log("Conflict detected, retrying takeover in 5s...");
+                    await forceTakeover(1);
+                    await new Promise(r => setTimeout(r, 3000));
                     return startBot();
                 }
                 throw err;
@@ -159,9 +141,6 @@ async function run() {
 
     } catch (error) {
         console.error("Runner Error:", error);
-        try {
-            await bot.telegram.sendMessage(groupId, `🚨 *Runner Failure:* ${error.message}`, { parse_mode: 'Markdown' });
-        } catch (e) {}
         process.exit(1);
     }
 }

@@ -21,19 +21,18 @@ async function launchMeeting(url) {
         // 1. Setup Serveo Tunnel (Unlimited & No IP check)
         logger.info("Establishing Serveo Unlimited Tunnel...");
         try {
-            // Start Serveo tunnel via SSH
             tunnelInstance = spawn('ssh', ['-o', 'StrictHostKeyChecking=no', '-R', '80:localhost:6080', 'serveo.net'], {
                 detached: false
             });
 
-            tunnelUrl = await new Promise((resolve, reject) => {
+            tunnelUrl = await new Promise((resolve) => {
                 let found = false;
                 const timeout = setTimeout(() => {
                     if (!found) {
                         logger.warn("Serveo URL extraction timed out. Using fallback.");
                         resolve("http://localhost:6080");
                     }
-                }, 20000);
+                }, 25000);
 
                 const handleOutput = (data) => {
                     const msg = data.toString();
@@ -62,7 +61,7 @@ async function launchMeeting(url) {
             tunnelUrl = "http://localhost:6080";
         }
 
-        logger.info(`Launching Stealth Puppeteer on DISPLAY :99 for URL: ${url}`);
+        logger.info(`Launching Ultimate Stealth Puppeteer on DISPLAY :99 for URL: ${url}`);
         browser = await puppeteer.launch({
             headless: false,
             executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome-stable',
@@ -70,6 +69,7 @@ async function launchMeeting(url) {
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--window-size=1920,1080',
+                '--window-position=0,0',
                 '--start-maximized',
                 '--hide-scrollbars',
                 '--disable-infobars',
@@ -77,22 +77,28 @@ async function launchMeeting(url) {
                 '--use-fake-ui-for-media-stream',
                 '--use-fake-device-for-media-stream',
                 '--display=:99',
-                // 🛠 FIX ZOOM ISSUES
+                // 🛠 FIX ZOOM & RESOLUTION
                 '--force-device-scale-factor=1',
                 '--high-dpi-support=1',
-                // 🛡 STEALTH MODE: Bypass Google Detection
+                // 🛡 ULTIMATE STEALTH: Bypass Detection
                 '--disable-blink-features=AutomationControlled',
                 '--disable-web-security',
-                '--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+                '--allow-running-insecure-content',
+                '--no-first-run',
+                '--no-default-browser-check',
+                '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
             ],
-            defaultViewport: null // Use full Xvfb resolution
+            defaultViewport: null
         });
 
         page = await browser.newPage();
 
-        // 🛡 Further Stealth: Remove webdriver property
+        // 🛡 Advanced Stealth: Mock navigator properties
         await page.evaluateOnNewDocument(() => {
             Object.defineProperty(navigator, 'webdriver', { get: () => false });
+            window.chrome = { runtime: {} };
+            Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
+            Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
         });
 
         await injectLoadingOverlay(page);
@@ -100,9 +106,9 @@ async function launchMeeting(url) {
 
         logger.info("Browser session initialized.");
 
-        // Generate One-Click Link
+        // Generate One-Click Link (Switched to vnc.html for scaling options)
         const vncPass = process.env.VNC_PASSWORD || "";
-        const oneClickUrl = `${tunnelUrl}/vnc_lite.html?autoconnect=true&password=${vncPass}`;
+        const oneClickUrl = `${tunnelUrl}/vnc.html?autoconnect=true&password=${vncPass}&scale=true`;
         logger.info(`Final Dashboard URL: ${oneClickUrl}`);
 
         return { url: oneClickUrl };
