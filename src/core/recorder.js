@@ -1,4 +1,6 @@
-const { spawn, execSync } = require('child_process');
+const { spawn, exec } = require('child_process');
+const util = require('util');
+const execPromise = util.promisify(exec);
 const path = require('path');
 const fs = require('fs-extra');
 const logger = require('../utils/logger');
@@ -10,6 +12,16 @@ const rawVideoPath = path.join(outputDir, 'meeting_master.mkv');
 const masterMp4Path = path.join(outputDir, 'meeting_master.mp4');
 const audioExtractPath = path.join(outputDir, 'meeting_audio.wav');
 const chunksDir = path.join(outputDir, 'chunks');
+
+// NEW: Progress tracking for UI
+let currentProgressCallback = null;
+function setProgressCallback(cb) { currentProgressCallback = cb; }
+
+async function updateStatus(status, progress) {
+    if (currentProgressCallback) {
+        await currentProgressCallback(status, progress);
+    }
+}
 
 async function startRecording() {
     await fs.ensureDir(outputDir);
@@ -43,15 +55,20 @@ async function stopRecording() {
 
     // 1. Force Browser to close first (Leaves meeting)
     try {
+        await updateStatus('STOPPING', 10);
         logger.info("Triggering browser close to leave meeting...");
-        const browserManager = require('./browser'); // Lazy load
-        await browserManager.closeBrowser();
+        const browserManager = require('./browser');
+
+        // Timeout for browser close to prevent hang
+        const browserClosePromise = browserManager.closeBrowser();
+        const timeoutPromise = new Promise(r => setTimeout(r, 15000)); // 15s max
+        await Promise.race([browserClosePromise, timeoutPromise]);
     } catch (e) {
-        logger.warn("Manual browser close failed:", e.message);
+        logger.warn("Browser close during stop failed or timed out:", e.message);
     }
 
     // 2. Stop FFmpeg
-    if (ffmpegProcess) {
+    if (ffmpegProcess && !ffmpegProcess.killed) {
         logger.info("Stopping active FFmpeg process...");
         try {
             ffmpegProcess.stdin.write('q');
@@ -63,40 +80,41 @@ async function stopRecording() {
         await new Promise((resolve) => {
             const forceKill = setTimeout(() => {
                 logger.warn("FFmpeg hang detected, forcing SIGKILL...");
-                ffmpegProcess.kill('SIGKILL');
+                if (ffmpegProcess) ffmpegProcess.kill('SIGKILL');
                 resolve();
-            }, 5000);
+            }, 8000);
 
             ffmpegProcess.on('exit', () => {
                 clearTimeout(forceKill);
-                logger.info("FFmpeg exited gracefully.");
+                logger.info("FFmpeg exited.");
                 resolve();
             });
         });
-    } else {
-        logger.warn("No active FFmpeg process found. Checking for existing files...");
     }
 
-    // 3. Post-Processing (Even if ffmpegProcess was null, we check for files)
+    // 3. Post-Processing
     try {
-        // Wait for file handles to release
         await new Promise(r => setTimeout(r, 2000));
 
         if (!fs.existsSync(rawVideoPath)) {
-            logger.error("Master recording (MKV) not found at: " + rawVideoPath);
+            logger.error("Master recording (MKV) not found.");
             return { videoChunks: [], audioPath: null, transcriptPath: null };
         }
 
+        await updateStatus('FINALIZING', 30);
         logger.info("Converting MKV to MP4...");
-        execSync(`ffmpeg -i "${rawVideoPath}" -c copy -movflags +faststart -y "${masterMp4Path}"`);
+        await execPromise(`ffmpeg -i "${rawVideoPath}" -c copy -movflags +faststart -y "${masterMp4Path}"`);
 
+        await updateStatus('FINALIZING', 50);
         logger.info("Splitting video into chunks...");
         const videoChunks = await processChunks(masterMp4Path);
 
+        await updateStatus('FINALIZING', 70);
         logger.info("Starting Whisper AI Transcription...");
         const transcriptPath = await transcriber.transcribe(audioExtractPath);
 
-        logger.info("Stop sequence complete. Assets ready.");
+        await updateStatus('FINALIZING', 90);
+        logger.info("Stop sequence complete.");
         return { videoChunks, audioPath: audioExtractPath, transcriptPath };
     } catch (err) {
         logger.error(`Post-processing Failure: ${err.message}`);
@@ -108,17 +126,17 @@ async function processChunks(filePath) {
     if (!fs.existsSync(filePath)) return [];
 
     const stats = fs.statSync(filePath);
-    const MAX_SIZE = 40 * 1024 * 1024; // 40MB limit for safety
+    const MAX_SIZE = 45 * 1024 * 1024; // 45MB limit
 
     if (stats.size <= MAX_SIZE) return [filePath];
 
     try {
-        const durationStr = execSync(`ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`).toString().trim();
-        const duration = parseFloat(durationStr);
+        const { stdout } = await execPromise(`ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`);
+        const duration = parseFloat(stdout.trim());
         const chunkDuration = Math.floor((MAX_SIZE / stats.size) * duration * 0.9);
 
         const outputPattern = path.join(chunksDir, 'GHOST_meet_Part_%03d.mp4');
-        execSync(`ffmpeg -i "${filePath}" -f segment -segment_time ${chunkDuration} -c copy -reset_timestamps 1 -movflags +faststart "${outputPattern}"`);
+        await execPromise(`ffmpeg -i "${filePath}" -f segment -segment_time ${chunkDuration} -c copy -reset_timestamps 1 -movflags +faststart "${outputPattern}"`);
 
         return fs.readdirSync(chunksDir)
             .filter(f => f.endsWith('.mp4'))
@@ -130,4 +148,4 @@ async function processChunks(filePath) {
     }
 }
 
-module.exports = { startRecording, stopRecording };
+module.exports = { startRecording, stopRecording, setProgressCallback };

@@ -63,144 +63,9 @@ function stopHeartbeat() {
 process.env.CHROME_PATH = '/usr/bin/google-chrome-stable';
 
 /**
- * Premium UI Helper: Animated Loading State
- */
-async function runWithLoading(ctx, taskName, taskFn) {
-    const statusMsg = await ctx.replyWithMarkdown(`? *GHOST meet:* ${taskName}... ??`);
-    const interval = setInterval(async () => {
-        try {
-            await ctx.telegram.editMessageText(ctx.chat.id, statusMsg.message_id, null, `? *GHOST meet:* ${taskName}... ?`, { parse_mode: 'Markdown' });
-            setTimeout(() => {
-                ctx.telegram.editMessageText(ctx.chat.id, statusMsg.message_id, null, `? *GHOST meet:* ${taskName}... ??`, { parse_mode: 'Markdown' }).catch(() => {});
-            }, 1000);
-        } catch (e) {}
-    }, 2000);
-
-    try {
-        const result = await taskFn();
-        clearInterval(interval);
-        await ctx.telegram.deleteMessage(ctx.chat.id, statusMsg.message_id).catch(() => {});
-        return result;
-    } catch (err) {
-        clearInterval(interval);
-        await ctx.telegram.editMessageText(ctx.chat.id, statusMsg.message_id, null, `? *Task Failed:* ${taskName}\n${err.message}`, { parse_mode: 'Markdown' });
-        throw err;
-    }
-}
-
-/**
- * Helper to show progress bar in Telegram
- */
-function getProgressBar(percent) {
-    const total = 10;
-    const progress = Math.round((percent / 100) * total);
-    const remaining = total - progress;
-    return `[${"?".repeat(progress)}${"?".repeat(remaining)}] ${percent}%`;
-}
-
-/**
  * Register all bot commands
  */
 function registerCommands() {
-    bot.command('view', async (ctx) => {
-        try {
-            await runWithLoading(ctx, "Capturing View", async () => {
-                const screenshotPath = await browserManager.takeScreenshot();
-                await ctx.replyWithPhoto({ source: screenshotPath }, { caption: "? *Current Meeting View*" , parse_mode: 'Markdown' });
-            });
-        } catch (err) {
-            console.error("View error", err);
-        }
-    });
-
-    bot.command('record', async (ctx) => {
-        if (isRecording) return;
-
-        try {
-            await recorder.startRecording();
-            isRecording = true;
-            await startHeartbeat(ctx);
-        } catch (err) {
-            console.error("Record error", err);
-        }
-    });
-
-    bot.command('stop', async (ctx) => {
-        if (!isRecording) return;
-
-        stopHeartbeat();
-
-        try {
-            isRecording = false;
-
-            // Phase 2: Processing
-            const finalizingUI = ui.generatePlayerUI({ status: 'FINALIZING', progress: 20 });
-            await ctx.telegram.editMessageText(chatId, playerMessageId, null, finalizingUI.text, { parse_mode: 'Markdown' });
-
-            const assets = await recorder.stopRecording();
-
-            // Check if assets were actually generated
-            if (!assets || (!assets.videoChunks.length && !assets.transcriptPath)) {
-                throw new Error("Recording finalized but no assets were generated. Check FFmpeg/Audio logs.");
-            }
-
-            // Phase 3: Uploading
-            const uploadingUI = ui.generatePlayerUI({ status: 'FINALIZING', progress: 80 });
-            await ctx.telegram.editMessageText(chatId, playerMessageId, null, uploadingUI.text, { parse_mode: 'Markdown' });
-
-            for (let i = 0; i < assets.videoChunks.length; i++) {
-                await ctx.replyWithVideo({ source: assets.videoChunks[i] }, { caption: `📽 Part ${i+1}` });
-            }
-
-            if (assets.audioPath) {
-                await ctx.replyWithAudio({ source: assets.audioPath }, { caption: "🎙 Meeting Audio Recording" });
-            }
-
-            if (assets.transcriptPath) {
-                await ctx.replyWithDocument({ source: assets.transcriptPath }, { caption: "📄 *AI Meeting Transcript*", parse_mode: 'Markdown' });
-            }
-
-            const completedUI = ui.generatePlayerUI({ status: 'COMPLETED', progress: 100, partCount: assets.videoChunks.length });
-            await ctx.telegram.editMessageText(chatId, playerMessageId, null, completedUI.text, { parse_mode: 'Markdown' });
-
-            // CLOSE BROWSER BEFORE EXIT
-            try {
-                console.log("Cleaning up browser session...");
-                await browserManager.closeBrowser();
-            } catch (e) {
-                console.error("Cleanup error:", e.message);
-            }
-
-            setTimeout(() => {
-                console.log("Runner complete. Exiting.");
-                process.exit(0);
-            }, 5000);
-
-        } catch (err) {
-            logger.error(`Stop Error: ${err.message}`);
-            process.exit(1);
-        }
-    });
-
-    // Handle Inline Button Clicks - DIRECT HANDLERS
-    bot.action('cmd_record', async (ctx) => {
-        if (isRecording) return ctx.answerCbQuery("⚠️ Already Recording");
-        await ctx.answerCbQuery("⚡ Booting Capture Engine...");
-
-        try {
-            // Instant Loading UI
-            const startingUI = ui.generatePlayerUI({ status: 'STARTING', dashboardUrl: currentDashboardUrl });
-            await ctx.telegram.editMessageText(chatId, playerMessageId, null, startingUI.text, { parse_mode: 'Markdown', ...startingUI.markup });
-
-            await recorder.startRecording();
-            isRecording = true;
-            await startHeartbeat(ctx);
-        } catch (err) {
-            console.error("Record error", err);
-            await ctx.reply(`❌ Engine Error: ${err.message}`);
-        }
-    });
-
     bot.action('cmd_screenshot', async (ctx) => {
         try {
             await ctx.answerCbQuery("📸 Capturing Live View...");
@@ -222,63 +87,54 @@ function registerCommands() {
         try {
             await ctx.answerCbQuery("💾 Finalizing Stream...");
 
-            // CRITICAL: Even if isRecording is locally false, we check if browser is active
-            // This ensures the runner handles the stop even if state is slightly out of sync
             isRecording = false;
             stopHeartbeat();
 
-            const stoppingUI = ui.generatePlayerUI({ status: 'STOPPING', progress: 10 });
-            await ctx.telegram.editMessageText(chatId, playerMessageId, null, stoppingUI.text, {
-                parse_mode: 'Markdown', ...stoppingUI.markup
+            // Link recorder progress to Telegram UI
+            recorder.setProgressCallback(async (status, progress) => {
+                const updatedUI = ui.generatePlayerUI({ status, progress });
+                await ctx.telegram.editMessageText(chatId, playerMessageId, null, updatedUI.text, {
+                    parse_mode: 'Markdown', ...updatedUI.markup
+                }).catch(() => {});
             });
 
             console.log("Runner: Triggering recorder.stopRecording()...");
 
-            // Set a timeout for the entire stop process to prevent infinite hang (15 minutes)
+            // Set a timeout for the entire stop process (15 minutes)
             const stopTimeout = setTimeout(() => {
-                console.error("Runner: stopRecording timed out after 15 minutes!");
-                ctx.reply("⚠️ *Timeout:* Asset processing took too long (15m limit). Check logs.").catch(() => {});
+                console.error("Runner: stopRecording timed out!");
+                ctx.reply("⚠️ *Timeout:* Asset processing took too long.").catch(() => {});
             }, 15 * 60 * 1000);
 
             const assets = await recorder.stopRecording();
             clearTimeout(stopTimeout);
 
-            console.log("Runner: stopRecording returned assets:", JSON.stringify(assets, null, 2));
-
             if (!assets || (!assets.videoChunks?.length && !assets.transcriptPath)) {
-                console.log("Runner: No assets generated or files not ready.");
+                console.log("Runner: No assets generated.");
                 const errorUI = ui.generatePlayerUI({ status: 'ERROR' });
                 await ctx.telegram.editMessageText(chatId, playerMessageId, null, errorUI.text + "\n\n❌ No recording files found.", { parse_mode: 'Markdown' });
                 return;
             }
 
-            const uploadingUI = ui.generatePlayerUI({ status: 'FINALIZING', progress: 50 });
+            // FINALIZING UI for upload phase
+            const uploadingUI = ui.generatePlayerUI({ status: 'FINALIZING', progress: 95 });
             await ctx.telegram.editMessageText(chatId, playerMessageId, null, uploadingUI.text, { parse_mode: 'Markdown' });
 
             console.log("Runner: Starting media uploads...");
 
-            // 1. Upload Video Chunks
-            if (assets.videoChunks?.length) {
-                for (let i = 0; i < assets.videoChunks.length; i++) {
-                    const chunk = assets.videoChunks[i];
-                    console.log(`Runner: Uploading Video Part ${i+1}: ${chunk}`);
-                    await ctx.replyWithVideo({ source: chunk }, {
-                        caption: `📽 GHOST meet | Part ${i+1}`
-                    });
-                }
+            for (let i = 0; i < assets.videoChunks.length; i++) {
+                await ctx.replyWithVideo({ source: assets.videoChunks[i] }, {
+                    caption: `📽 GHOST meet | Part ${i+1}`
+                });
             }
 
-            // 2. Upload Audio
             if (assets.audioPath) {
-                console.log(`Runner: Uploading Audio: ${assets.audioPath}`);
                 await ctx.replyWithAudio({ source: assets.audioPath }, {
                     caption: "🎙 Meeting Audio Recording"
                 });
             }
 
-            // 3. Upload Transcript
             if (assets.transcriptPath) {
-                console.log(`Runner: Uploading Transcript: ${assets.transcriptPath}`);
                 await ctx.replyWithDocument({ source: assets.transcriptPath }, {
                     caption: "📄 AI Meeting Transcript (Hinglish)"
                 });
@@ -288,7 +144,7 @@ function registerCommands() {
             await ctx.telegram.editMessageText(chatId, playerMessageId, null, completedUI.text, { parse_mode: 'Markdown' });
 
             console.log("Runner: Sequence Complete. Cleaning up...");
-            await browserManager.closeBrowser().catch(e => console.log("Browser close error:", e.message));
+            await browserManager.closeBrowser().catch(() => {});
 
             setTimeout(() => {
                 console.log("Runner: Final Exit.");
@@ -303,17 +159,12 @@ function registerCommands() {
 
 async function run() {
     try {
-        // Mask sensitive meeting URL in logs
-        const maskedUrl = meetingUrl ? meetingUrl.replace(/meet\.google\.com\/[a-z0-9-]+/i, 'meet.google.com/****-****-****') : 'HIDDEN';
-        console.log(`🚀 Starting GitHub Runner for target: ${maskedUrl}`);
-
-        // 1. Register Commands & Actions FIRST
+        console.log(`🚀 Starting GitHub Runner...`);
         registerCommands();
 
         // 2. IMMEDIATE WEBHOOK LOCK: Force Render bot silence first
         async function forceWebhookLock() {
             try {
-                console.log("Applying Webhook Lock to silence Render bot...");
                 await bot.telegram.setWebhook(`https://google.com/lock-${Date.now()}`);
                 await new Promise(r => setTimeout(r, 2000));
                 await bot.telegram.deleteWebhook({ drop_pending_updates: true });
@@ -324,39 +175,27 @@ async function run() {
         }
         await forceWebhookLock();
 
-        // 3. Start Polling BEFORE long-running async tasks
+        // 3. Start Polling
         const botPromise = bot.launch({
             dropPendingUpdates: true,
-            polling: {
-                timeout: 30,
-                limit: 100
-            }
-        }).then(() => console.log("Runner Bot Polling Active.")).catch(err => {
-            if (err.response && err.response.error_code === 409) {
-                console.log("Conflict detected, retrying...");
-            } else {
-                throw err;
-            }
+            polling: { timeout: 30, limit: 100 }
         });
 
-        // 4. Update UI to CONNECTING
         const connectingUI = ui.generatePlayerUI({ status: 'CONNECTING', meetingUrl });
         await bot.telegram.editMessageText(chatId, playerMessageId, null, connectingUI.text, {
             parse_mode: 'Markdown', ...connectingUI.markup
         });
 
-        // 5. Launch Browser
         const tunnel = await browserManager.launchMeeting(meetingUrl);
         currentDashboardUrl = tunnel.url;
+        isRecording = true; // Auto-record for Runner usually, or wait for start
 
-        // 6. Update Player UI to READY
         const readyUI = ui.generatePlayerUI({ status: 'READY', dashboardUrl: tunnel.url });
         await bot.telegram.editMessageText(chatId, playerMessageId, null, readyUI.text, {
             parse_mode: 'Markdown', ...readyUI.markup
         });
 
         await botPromise;
-
     } catch (error) {
         console.error("Runner Error:", error);
         process.exit(1);
