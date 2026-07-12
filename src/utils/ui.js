@@ -68,7 +68,10 @@ function generatePlayerUI(params) {
     if (status === 'READY') {
         buttons.push([Markup.button.callback('⏺ START CAPTURE', 'cmd_record')]);
     } else if (status === 'RECORDING') {
-        buttons.push([Markup.button.callback('🛑 STOP & SAVE', 'cmd_stop')]);
+        buttons.push([
+            Markup.button.callback('📸 SCREENSHOT', 'cmd_screenshot'),
+            Markup.button.callback('🛑 STOP & SAVE', 'cmd_stop')
+        ]);
     } else if (status === 'STARTING' || status === 'STOPPING') {
         // Show disabled/loading button
         buttons.push([Markup.button.callback('⏳ PROCESSING...', 'none')]);

@@ -193,6 +193,14 @@ bot.command('stop', async (ctx) => {
             );
         }
 
+        // Upload Audio Recording
+        if (assets.audioPath) {
+            await ctx.replyWithAudio(
+                { source: assets.audioPath },
+                { caption: "🎙 Meeting Audio Recording\n✨ High quality capture" }
+            );
+        }
+
         // Upload AI Transcript
         if (assets.transcriptPath) {
             await ctx.replyWithDocument(
@@ -214,7 +222,7 @@ bot.command('stop', async (ctx) => {
             "✅ All assets uploaded successfully.\n" +
             "🔐 Files secured in group storage.\n" +
             "🚀 Engine hibernated.\n\n" +
-            "Use `/join <url>` to start a new session.";
+            "Send a meeting link to start a new session.";
         await ctx.replyWithMarkdown(finalUI);
 
     } catch (error) {
@@ -348,6 +356,12 @@ bot.action('cmd_stop', async (ctx) => {
             });
         }
 
+        if (assets.audioPath) {
+            await ctx.replyWithAudio({ source: assets.audioPath }, {
+                caption: "🎙 Meeting Audio Recording\n✨ High quality capture"
+            });
+        }
+
         if (assets.transcriptPath) {
             await ctx.replyWithDocument({ source: assets.transcriptPath }, {
                 caption: "📄 AI Meeting Transcript (Hinglish)\n✨ Full continuous transcription"
@@ -365,6 +379,23 @@ bot.action('cmd_stop', async (ctx) => {
     }
 });
 
+bot.action('cmd_screenshot', async (ctx) => {
+    try {
+        await ctx.answerCbQuery("📸 Capturing Live View...");
+        const screenshotPath = await browserManager.takeScreenshot();
+        if (screenshotPath) {
+            await ctx.replyWithPhoto({ source: screenshotPath }, {
+                caption: "🖼 *LIVE PREVIEW*\n━━━━━━━━━━━━━━━━━━━━━━\nCurrent meeting screen status.",
+                parse_mode: 'Markdown'
+            });
+        } else {
+            await ctx.reply("❌ Failed to capture screenshot. Is the meeting active?");
+        }
+    } catch (e) {
+        logger.error("Screenshot action error:", e.message);
+    }
+});
+
 bot.action('engine_status', (ctx) => {
     ctx.answerCbQuery();
     ctx.reply("System pulse: 100%. Encryption layers active. Engine performing within parameters.");
@@ -372,7 +403,7 @@ bot.action('engine_status', (ctx) => {
 
 bot.action('help_guide', (ctx) => {
     ctx.answerCbQuery();
-    ctx.reply("GHOST meet Manual:\n1. Use /join for the meeting link.\n2. Manual login via Ngrok link.\n3. /record to start.\n4. /stop to get the files.");
+    ctx.reply("GHOST meet Manual:\n1. Send the meeting link directly to this chat.\n2. Use the interactive PLAYER buttons to Start, Stop, or Take Screenshots.\n3. Recordings and transcripts are delivered automatically.");
 });
 
 // Launch sequence

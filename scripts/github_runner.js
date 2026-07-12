@@ -146,11 +146,15 @@ function registerCommands() {
             await ctx.telegram.editMessageText(chatId, playerMessageId, null, uploadingUI.text, { parse_mode: 'Markdown' });
 
             for (let i = 0; i < assets.videoChunks.length; i++) {
-                await ctx.replyWithVideo({ source: assets.videoChunks[i] }, { caption: `? Part ${i+1}` });
+                await ctx.replyWithVideo({ source: assets.videoChunks[i] }, { caption: `📽 Part ${i+1}` });
+            }
+
+            if (assets.audioPath) {
+                await ctx.replyWithAudio({ source: assets.audioPath }, { caption: "🎙 Meeting Audio Recording" });
             }
 
             if (assets.transcriptPath) {
-                await ctx.replyWithDocument({ source: assets.transcriptPath }, { caption: "? *AI Meeting Transcript*", parse_mode: 'Markdown' });
+                await ctx.replyWithDocument({ source: assets.transcriptPath }, { caption: "📄 *AI Meeting Transcript*", parse_mode: 'Markdown' });
             }
 
             const completedUI = ui.generatePlayerUI({ status: 'COMPLETED', progress: 100, partCount: assets.videoChunks.length });
@@ -194,6 +198,21 @@ function registerCommands() {
         }
     });
 
+    bot.action('cmd_screenshot', async (ctx) => {
+        try {
+            await ctx.answerCbQuery("📸 Capturing Live View...");
+            const screenshotPath = await browserManager.takeScreenshot();
+            if (screenshotPath) {
+                await ctx.telegram.sendPhoto(chatId, { source: screenshotPath }, {
+                    caption: "🖼 *LIVE PREVIEW*\n━━━━━━━━━━━━━━━━━━━━━━\nCurrent meeting screen status.",
+                    parse_mode: 'Markdown'
+                });
+            }
+        } catch (e) {
+            console.error("Screenshot action error:", e.message);
+        }
+    });
+
     bot.action('cmd_stop', async (ctx) => {
         if (!isRecording) return ctx.answerCbQuery("⚠️ No Active Recording");
 
@@ -219,9 +238,14 @@ function registerCommands() {
             const uploadingUI = ui.generatePlayerUI({ status: 'FINALIZING', progress: 80 });
             await ctx.telegram.editMessageText(chatId, playerMessageId, null, uploadingUI.text, { parse_mode: 'Markdown' });
 
-            for (const chunk of assets.videoChunks) {
+            for (let i = 0; i < assets.videoChunks.length; i++) {
+                const chunk = assets.videoChunks[i];
                 console.log(`Uploading: ${chunk}`);
-                await ctx.replyWithVideo({ source: chunk }, { caption: `📽 Part ${assets.videoChunks.indexOf(chunk) + 1}` });
+                await ctx.replyWithVideo({ source: chunk }, { caption: `📽 Part ${i + 1}` });
+            }
+
+            if (assets.audioPath) {
+                await ctx.replyWithAudio({ source: assets.audioPath }, { caption: "🎙 Meeting Audio Recording" });
             }
 
             if (assets.transcriptPath) {

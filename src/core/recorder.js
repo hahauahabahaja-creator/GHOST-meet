@@ -83,10 +83,10 @@ async function stopRecording() {
                 logger.info("Starting Whisper AI Transcription...");
                 const transcriptPath = await transcriber.transcribe(audioExtractPath);
 
-                resolve({ videoChunks, transcriptPath });
+                resolve({ videoChunks, audioPath: audioExtractPath, transcriptPath });
             } catch (err) {
                 logger.error(`Post-processing Failure: ${err.message}`);
-                resolve({ videoChunks: [], transcriptPath: null });
+                resolve({ videoChunks: [], audioPath: null, transcriptPath: null });
             }
         });
 
