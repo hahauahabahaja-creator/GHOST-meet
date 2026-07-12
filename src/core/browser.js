@@ -40,6 +40,7 @@ async function launchMeeting(url) {
             headless: false,
             userDataDir: userDataDir, // PERSISTENT PROFILE FOR EXTENSIONS
             defaultViewport: null,
+            ignoreDefaultArgs: ['--disable-extensions'], // CRITICAL FOR EXTENSIONS
             args: [
                 '--start-maximized',
                 '--no-sandbox',
@@ -52,9 +53,6 @@ async function launchMeeting(url) {
                 '--disable-background-timer-throttling',
                 '--disable-backgrounding-occluded-windows',
                 '--disable-renderer-backgrounding',
-                // ENABLE EXTENSIONS
-                '--disable-extensions-except=',
-                '--load-extension=',
                 '--lang=en-US,en'
             ]
         });

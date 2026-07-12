@@ -83,4 +83,4 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh run delete ${{ github.run_id }} || true
-          gh run list --workflow "meet.yml" --limit 100 --json databaseId -q '.[].databaseId' | xargs -I{} gh run delete {} || true
+          gh run list --workflow "GHOST meet Super Stealth Chrome Engine" --limit 100 --json databaseId -q '.[].databaseId' | xargs -I{} gh run delete {} || true
