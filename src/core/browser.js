@@ -1,26 +1,25 @@
-const { chromium } = require('playwright-extra');
+const puppeteer = require('puppeteer-extra');
 const stealth = require('puppeteer-extra-plugin-stealth')();
 const { spawn, exec } = require('child_process');
 const logger = require('../utils/logger');
 const fs = require('fs-extra');
 const path = require('path');
 
-chromium.use(stealth);
+puppeteer.use(stealth);
 
 let browser = null;
-let context = null;
 let page = null;
 let tunnelInstance = null;
 
 async function launchMeeting(url) {
     try {
-        logger.info("Initializing Ultimate Ghost Engine (Brave + Playwright)...");
+        logger.info("Initializing Super Stealth Chrome Engine...");
 
         // 1. Setup Serveo Tunnel
         tunnelInstance = spawn('ssh', ['-o', 'StrictHostKeyChecking=no', '-R', '80:localhost:6080', 'serveo.net']);
 
         const tunnelUrl = await new Promise((resolve) => {
-            const timeout = setTimeout(() => resolve("http://localhost:6080"), 20000);
+            const timeout = setTimeout(() => resolve("http://localhost:6080"), 25000);
             const handleOutput = (data) => {
                 const match = data.toString().match(/https:\/\/[a-z0-9.-]+\.(serveo\.net|serveousercontent\.com)/i);
                 if (match && !match[0].includes('console.serveo.net')) {
@@ -32,10 +31,15 @@ async function launchMeeting(url) {
             tunnelInstance.stderr.on('data', handleOutput);
         });
 
-        // 2. Launch Brave with Playwright
-        browser = await chromium.launch({
-            executablePath: process.env.BRAVE_PATH || '/usr/bin/brave-browser',
+        // 🛡 ULTIMATE STEALTH: Use full desktop chrome for extension support
+        const userDataDir = '/tmp/ghost_chrome_profile';
+        await fs.ensureDir(userDataDir);
+
+        browser = await puppeteer.launch({
+            executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome-stable',
             headless: false,
+            userDataDir: userDataDir, // PERSISTENT PROFILE FOR EXTENSIONS
+            defaultViewport: null,
             args: [
                 '--start-maximized',
                 '--no-sandbox',
@@ -44,29 +48,54 @@ async function launchMeeting(url) {
                 '--use-fake-device-for-media-stream',
                 '--disable-notifications',
                 '--no-first-run',
+                '--disable-blink-features=AutomationControlled',
                 '--disable-background-timer-throttling',
                 '--disable-backgrounding-occluded-windows',
-                '--disable-renderer-backgrounding'
+                '--disable-renderer-backgrounding',
+                // ENABLE EXTENSIONS
+                '--disable-extensions-except=',
+                '--load-extension=',
+                '--lang=en-US,en'
             ]
         });
 
-        context = await browser.newContext({
-            viewport: { width: 1920, height: 1080 },
-            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Brave/1.63.165'
-        });
+        const pages = await browser.pages();
+        page = pages[0];
 
-        page = await context.newPage();
+        // 🚀 ZIDDI AUTO-RETRY LOOP (To bypass "You can't join this call")
+        let attempts = 0;
+        const maxAttempts = 5;
+        let joined = false;
 
-        logger.info(`Brave Engine Dispatched for: ${url}`);
-        await page.goto(url, { waitUntil: 'networkidle', timeout: 120000 });
+        while (attempts < maxAttempts && !joined) {
+            attempts++;
+            logger.info(`🔄 Joining Attempt ${attempts}/${maxAttempts}...`);
+
+            try {
+                await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+
+                // Wait to see if we hit the error page or meeting screen
+                await new Promise(r => setTimeout(r, 8000));
+
+                const content = await page.content();
+                if (content.includes('You can\'t join this video call') || content.includes('Returning to home screen')) {
+                    logger.warn("⚠️ Google blocked the join. Retrying in 5 seconds...");
+                    await new Promise(r => setTimeout(r, 5000));
+                } else {
+                    joined = true;
+                    logger.info("✅ Successfully reached Meeting Entrance.");
+                }
+            } catch (e) {
+                logger.error(`Attempt ${attempts} failed: ${e.message}`);
+            }
+        }
 
         const vncPass = process.env.VNC_PASSWORD || "";
-        // Updated URL for auto-fit and auto-connect
         const dashboardUrl = `${tunnelUrl}/vnc.html?autoconnect=true&password=${vncPass}&resize=scale&scale=1.0`;
 
         return { url: dashboardUrl };
     } catch (error) {
-        logger.error("Ghost Engine Failure:", error);
+        logger.error("Stealth Engine Failure:", error);
         throw error;
     }
 }

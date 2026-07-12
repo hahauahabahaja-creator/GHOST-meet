@@ -1,4 +1,4 @@
-name: GHOST meet Ultimate Ghost Engine
+name: GHOST meet Super Stealth Chrome Engine
 
 on:
   repository_dispatch:
@@ -28,20 +28,21 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Critical Tools & Brave Browser
+      - name: Install Google Chrome & Tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq curl gnupg xvfb ffmpeg pulseaudio dbus-x11 x11vnc novnc
-          # Install Brave Browser
-          sudo curl -fsSLo /usr/share/keyrings/brave-browser-archive-keyring.gpg https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/brave-browser-archive-keyring.gpg] https://brave-browser-apt-release.s3.brave.com/ stable main"|sudo tee /etc/apt/sources.list.d/brave-browser-release.list
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq brave-browser
+          sudo apt-get install -y -qq wget curl gnupg xvfb ffmpeg pulseaudio dbus-x11 x11vnc novnc fluxbox
+          # Ensure Google Chrome is installed
+          if ! command -v google-chrome &> /dev/null; then
+            wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+            sudo sh -c 'echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list'
+            sudo apt-get update -qq
+            sudo apt-get install -y -qq google-chrome-stable
+          fi
 
       - name: Fast Node Install
         run: |
           npm install --no-audit --no-fund --quiet
-          npx playwright install-deps
 
       - name: Fast Python Install
         run: |
@@ -53,7 +54,6 @@ jobs:
         run: |
           Xvfb :99 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset &
           sleep 3
-          # Start Window Manager to prevent black screen on tab switch
           fluxbox -display :99 &
           sleep 2
           pulseaudio -D --exit-idle-time=-1 --disallow-exit
@@ -65,7 +65,7 @@ jobs:
           x11vnc -display :99 -forever -shared -passwd "$VNC_PASSWORD" -bg -quiet
           /usr/share/novnc/utils/novnc_proxy --vnc localhost:5900 --listen 6080 &
 
-      - name: Launch GHOST Ultimate Runner
+      - name: Launch GHOST Chrome Runner
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           ALLOWED_GROUP_ID: ${{ secrets.ALLOWED_GROUP_ID }}
@@ -74,7 +74,7 @@ jobs:
           CHAT_ID: ${{ github.event.client_payload.chat_id }}
           VNC_PASSWORD: ${{ secrets.VNC_PASSWORD }}
           DISPLAY: :99
-          BRAVE_PATH: /usr/bin/brave-browser
+          CHROME_PATH: /usr/bin/google-chrome-stable
         run: node scripts/github_runner.js
 
       - name: Wipe History & Self-Destruct
