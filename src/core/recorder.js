@@ -33,6 +33,7 @@ async function startRecording() {
 
     logger.info("Initializing HD Stream Capture on :99...");
 
+    // Unified FFmpeg process for video and audio
     ffmpegProcess = spawn('ffmpeg', [
         '-f', 'x11grab',
         '-video_size', '1920x1080',
@@ -42,15 +43,20 @@ async function startRecording() {
         '-i', 'v_sink.monitor',
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
-        '-crf', '23',
+        '-crf', '28', // Slightly lower quality for faster processing/smaller size
         '-pix_fmt', 'yuv420p',
         '-c:a', 'aac',
         '-b:a', '128k',
+        '-ac', '2',
         '-y', rawVideoPath,
-        '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', '-af', 'loudnorm', audioExtractPath
+        // Separate audio-only stream for transcription (Resilient to silence)
+        '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', '-y', audioExtractPath
     ]);
 
-    ffmpegProcess.on('error', (err) => logger.error(`FFMPEG Startup Error: ${err.message}`));
+    ffmpegProcess.stderr.on('data', (data) => {
+        const output = data.toString();
+        if (output.includes('Error')) logger.error(`FFMPEG Error: ${output}`);
+    });
 }
 
 async function stopRecording() {
@@ -106,30 +112,41 @@ async function stopRecording() {
 
         await updateStatus('FINALIZING', 20);
         logger.info("Converting MKV to MP4...");
-        await execPromise(`ffmpeg -i "${rawVideoPath}" -c copy -movflags +faststart -y "${masterMp4Path}"`);
+        try {
+            await execPromise(`ffmpeg -i "${rawVideoPath}" -c copy -movflags +faststart -y "${masterMp4Path}"`);
+        } catch (e) {
+            logger.warn(`Fast conversion failed: ${e.message}. Trying re-encoding...`);
+            await execPromise(`ffmpeg -i "${rawVideoPath}" -c:v libx264 -preset superfast -crf 28 -c:a aac -y "${masterMp4Path}"`);
+        }
 
         await updateStatus('FINALIZING', 40);
         logger.info("Splitting video into chunks...");
-        const videoChunks = await processChunks(masterMp4Path);
+        let videoChunks = await processChunks(masterMp4Path);
+
+        // Final sanity check on chunks
+        videoChunks = videoChunks.filter(f => fs.existsSync(f) && fs.statSync(f).size > 0);
 
         await updateStatus('FINALIZING', 60);
 
         let transcriptPath = null;
-        try {
-            logger.info("Starting Whisper AI Transcription...");
-            // Add a timeout for transcription to prevent indefinite hang
-            const transcriptionPromise = transcriber.transcribe(audioExtractPath);
-            const transcriptionTimeout = new Promise(r => setTimeout(() => r(null), 5 * 60 * 1000)); // 5 min max
-            transcriptPath = await Promise.race([transcriptionPromise, transcriptionTimeout]);
-        } catch (e) {
-            logger.error(`Transcription failed: ${e.message}`);
+        if (fs.existsSync(audioExtractPath) && fs.statSync(audioExtractPath).size > 1000) {
+            try {
+                logger.info("Starting Whisper AI Transcription...");
+                const transcriptionPromise = transcriber.transcribe(audioExtractPath);
+                const transcriptionTimeout = new Promise(r => setTimeout(() => r(null), 5 * 60 * 1000)); // 5 min max
+                transcriptPath = await Promise.race([transcriptionPromise, transcriptionTimeout]);
+            } catch (e) {
+                logger.error(`Transcription failed: ${e.message}`);
+            }
+        } else {
+            logger.warn("Audio file too small or missing, skipping transcription.");
         }
 
         await updateStatus('FINALIZING', 90);
         logger.info("Stop sequence complete.");
         return {
             videoChunks,
-            audioPath: fs.existsSync(audioExtractPath) ? audioExtractPath : null,
+            audioPath: (fs.existsSync(audioExtractPath) && fs.statSync(audioExtractPath).size > 0) ? audioExtractPath : null,
             transcriptPath
         };
     } catch (err) {

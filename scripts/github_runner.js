@@ -42,7 +42,7 @@ async function startHeartbeat(ctx) {
         });
 
         try {
-            await ctx.telegram.editMessageText(chatId, playerMessageId, null, updatedUI.text, {
+            await ctx.telegram.editMessageText(chatId, Number(playerMessageId), null, updatedUI.text, {
                 parse_mode: 'Markdown', ...updatedUI.markup
             });
         } catch (e) {
@@ -109,7 +109,7 @@ function registerCommands() {
             // Link recorder progress to Telegram UI
             recorder.setProgressCallback(async (status, progress) => {
                 const updatedUI = ui.generatePlayerUI({ status, progress });
-                await ctx.telegram.editMessageText(chatId, playerMessageId, null, updatedUI.text, {
+                await ctx.telegram.editMessageText(chatId, Number(playerMessageId), null, updatedUI.text, {
                     parse_mode: 'Markdown', ...updatedUI.markup
                 }).catch(() => {});
             });
@@ -127,38 +127,40 @@ function registerCommands() {
             if (!assets || (!assets.videoChunks?.length && !assets.transcriptPath)) {
                 console.log("Runner: No assets generated.");
                 const errorUI = ui.generatePlayerUI({ status: 'ERROR' });
-                await ctx.telegram.editMessageText(chatId, playerMessageId, null, errorUI.text + "\n\n❌ No recording files found.", { parse_mode: 'Markdown' });
+                await ctx.telegram.editMessageText(chatId, Number(playerMessageId), null, errorUI.text + "\n\n❌ No recording files found.", { parse_mode: 'Markdown' });
                 return;
             }
 
             const uploadingUI = ui.generatePlayerUI({ status: 'FINALIZING', progress: 95 });
-            await ctx.telegram.editMessageText(chatId, playerMessageId, null, uploadingUI.text, { parse_mode: 'Markdown' });
+            await ctx.telegram.editMessageText(chatId, Number(playerMessageId), null, uploadingUI.text, { parse_mode: 'Markdown' });
 
             console.log("Runner: Starting media uploads...");
 
             for (let i = 0; i < assets.videoChunks.length; i++) {
-                await ctx.telegram.editMessageText(chatId, playerMessageId, null, `💾 *FINALIZING*\n━━━━━━━━━━━━━━━━━━━━━━\n📤 Uploading Video Part ${i+1}/${assets.videoChunks.length}...`, { parse_mode: 'Markdown' }).catch(() => {});
+                await ctx.telegram.editMessageText(chatId, Number(playerMessageId), null, `💾 *FINALIZING*\n━━━━━━━━━━━━━━━━━━━━━━\n📤 Uploading Video Part ${i+1}/${assets.videoChunks.length}...`, { parse_mode: 'Markdown' }).catch(() => {});
                 await ctx.replyWithVideo({ source: assets.videoChunks[i] }, {
                     caption: `📽 GHOST meet | Part ${i+1}`
                 });
             }
 
             if (assets.audioPath) {
-                await ctx.telegram.editMessageText(chatId, playerMessageId, null, `💾 *FINALIZING*\n━━━━━━━━━━━━━━━━━━━━━━\n📤 Uploading Audio Recording...`, { parse_mode: 'Markdown' }).catch(() => {});
+                await ctx.telegram.editMessageText(chatId, Number(playerMessageId), null, `💾 *FINALIZING*\n━━━━━━━━━━━━━━━━━━━━━━\n📤 Uploading Audio Recording...`, { parse_mode: 'Markdown' }).catch(() => {});
                 await ctx.replyWithAudio({ source: assets.audioPath }, {
                     caption: "🎙 Meeting Audio Recording"
                 });
             }
 
             if (assets.transcriptPath) {
-                await ctx.telegram.editMessageText(chatId, playerMessageId, null, `💾 *FINALIZING*\n━━━━━━━━━━━━━━━━━━━━━━\n📤 Uploading AI Transcript...`, { parse_mode: 'Markdown' }).catch(() => {});
+                await ctx.telegram.editMessageText(chatId, Number(playerMessageId), null, `💾 *FINALIZING*\n━━━━━━━━━━━━━━━━━━━━━━\n📤 Uploading AI Transcript...`, { parse_mode: 'Markdown' }).catch(() => {});
                 await ctx.replyWithDocument({ source: assets.transcriptPath }, {
                     caption: "📄 AI Meeting Transcript (Hinglish)"
                 });
+            } else {
+                await ctx.reply("📄 *AI Transcript:* Skip/Not generated (No audio detected).", { parse_mode: 'Markdown' }).catch(() => {});
             }
 
             const completedUI = ui.generatePlayerUI({ status: 'COMPLETED', progress: 100 });
-            await ctx.telegram.editMessageText(chatId, playerMessageId, null, completedUI.text, { parse_mode: 'Markdown' });
+            await ctx.telegram.editMessageText(chatId, Number(playerMessageId), null, completedUI.text, { parse_mode: 'Markdown' });
 
             console.log("Runner: Sequence Complete. Cleaning up...");
             await browserManager.closeBrowser().catch(() => {});
@@ -218,7 +220,7 @@ async function run() {
 
         try {
             const connectingUI = ui.generatePlayerUI({ status: 'CONNECTING', meetingUrl });
-            await bot.telegram.editMessageText(chatId, playerMessageId, null, connectingUI.text, {
+            await bot.telegram.editMessageText(chatId, Number(playerMessageId), null, connectingUI.text, {
                 parse_mode: 'Markdown', ...connectingUI.markup
             });
         } catch (e) {
@@ -231,7 +233,7 @@ async function run() {
         currentDashboardUrl = tunnel.url;
 
         const readyUI = ui.generatePlayerUI({ status: 'READY', dashboardUrl: tunnel.url });
-        await bot.telegram.editMessageText(chatId, playerMessageId, null, readyUI.text, {
+        await bot.telegram.editMessageText(chatId, Number(playerMessageId), null, readyUI.text, {
             parse_mode: 'Markdown', ...readyUI.markup
         });
 
