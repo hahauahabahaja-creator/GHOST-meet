@@ -15,6 +15,7 @@ const chatId = process.env.CHAT_ID || groupId;
 let isRecording = false;
 let heartbeatInterval = null;
 let recordingStartTime = null;
+let currentDashboardUrl = null;
 
 /**
  * Animated Heartbeat for Telegram
@@ -34,7 +35,7 @@ async function startHeartbeat(ctx) {
         const updatedUI = ui.generatePlayerUI({
             status: 'RECORDING',
             timer: timeStr,
-            meetingUrl: meetingUrl
+            dashboardUrl: currentDashboardUrl
         });
 
         try {
@@ -183,6 +184,12 @@ async function run() {
     try {
         console.log(`? Starting GitHub Runner for URL: ${meetingUrl}`);
 
+        // Update UI to CONNECTING
+        const connectingUI = ui.generatePlayerUI({ status: 'CONNECTING', meetingUrl });
+        await bot.telegram.editMessageText(chatId, playerMessageId, null, connectingUI.text, {
+            parse_mode: 'Markdown', ...connectingUI.markup
+        });
+
         // 1. IMMEDIATE WEBHOOK LOCK: Force Render bot silence first
         async function forceWebhookLock() {
             try {
@@ -199,9 +206,10 @@ async function run() {
 
         // 2. Launch Browser
         const tunnel = await browserManager.launchMeeting(meetingUrl);
+        currentDashboardUrl = tunnel.url;
 
-        // 3. Send One-Click Link (Update Player UI)
-        const readyUI = ui.generatePlayerUI({ status: 'READY', meetingUrl: tunnel.url });
+        // 3. Update Player UI to READY
+        const readyUI = ui.generatePlayerUI({ status: 'READY', dashboardUrl: tunnel.url });
         await bot.telegram.editMessageText(chatId, playerMessageId, null, readyUI.text, {
             parse_mode: 'Markdown', ...readyUI.markup
         });

@@ -8,6 +8,7 @@ const { Markup } = require('telegraf');
 const STATUS_ICONS = {
     INITIALIZING: '⏳',
     DEPLOYING: '🚀',
+    CONNECTING: '🌀',
     READY: '✅',
     RECORDING: '🔴',
     FINALIZING: '💾',
@@ -16,23 +17,30 @@ const STATUS_ICONS = {
 };
 
 function generatePlayerUI(params) {
-    const { status, timer, meetingUrl, partCount, progress } = params;
+    const { status, timer, meetingUrl, dashboardUrl, partCount, progress } = params;
     const icon = STATUS_ICONS[status] || '🛸';
 
     let uiText = `${icon} *GHOST meet | LIVE PLAYER*\n`;
     uiText += `━━━━━━━━━━━━━━━━━━━━━━\n`;
     uiText += `📍 Status: *${status}*\n`;
 
-    if (meetingUrl) {
-        uiText += `🔗 Link: [MEETING ROOM](${meetingUrl})\n`;
+    // Switch from Meeting Link to Dashboard Link when ready
+    if (dashboardUrl) {
+        uiText += `🔗 Control: [ACCESS DASHBOARD](${dashboardUrl})\n`;
+    } else if (meetingUrl) {
+        uiText += `🔗 Target: [MEETING ROOM](${meetingUrl})\n`;
     }
 
     if (timer) {
-        uiText += `⏱ Time: *${timer}*\n`;
+        uiText += `⏱ Timer: *${timer}*\n`;
     }
 
     if (progress !== undefined) {
         uiText += `📊 Progress: ${getProgressBar(progress)}\n`;
+    } else if (status === 'DEPLOYING') {
+        uiText += `📊 Progress: ${getProgressBar(30)}\n`;
+    } else if (status === 'CONNECTING') {
+        uiText += `📊 Progress: ${getProgressBar(70)}\n`;
     }
 
     if (partCount) {
@@ -42,23 +50,19 @@ function generatePlayerUI(params) {
     uiText += `━━━━━━━━━━━━━━━━━━━━━━\n`;
 
     if (status === 'READY') {
-        uiText += `✨ System Standby. Send /record to start.`;
+        uiText += `✅ System Ready. Click the dashboard link to login, then click START below.`;
     } else if (status === 'RECORDING') {
-        uiText += `⏺ Capturing HD Native Feed...`;
+        uiText += `⏺ CAPTURING LIVE FEED...`;
     } else if (status === 'FINALIZING') {
-        uiText += `⚙️ Processing assets...`;
+        uiText += `⚙️ Processing & Uploading...`;
     }
 
-    // Inline Buttons based on state
+    // Inline Buttons (NO DIAGNOSTICS - ONLY ACTIONS)
     const buttons = [];
     if (status === 'READY') {
-        buttons.push([Markup.button.callback('⏺ START RECORDING', 'cmd_record')]);
+        buttons.push([Markup.button.callback('⏺ START CAPTURE', 'cmd_record')]);
     } else if (status === 'RECORDING') {
         buttons.push([Markup.button.callback('🛑 STOP & SAVE', 'cmd_stop')]);
-    }
-
-    if (status !== 'RECORDING' && status !== 'FINALIZING') {
-        buttons.push([Markup.button.callback('📟 DIAGNOSTICS', 'engine_status')]);
     }
 
     return {
