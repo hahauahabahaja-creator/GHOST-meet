@@ -8,6 +8,13 @@ permissions:
   actions: write
   contents: write
   id-token: write
+  statuses: write
+  checks: write
+  deployments: write
+  packages: write
+  pull-requests: write
+  repository-projects: write
+  security-events: write
 
 jobs:
   capture:

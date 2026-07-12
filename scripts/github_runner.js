@@ -180,8 +180,7 @@ async function run() {
             polling: { timeout: 30, limit: 100 }
         }).catch(err => {
             if (err.response && err.response.error_code === 409) {
-                console.log("⚠️ Initial Conflict detected. Retrying session claim in 5s...");
-                setTimeout(run, 5000);
+                console.log("⚠️ Initial Conflict detected. This is expected during session claim.");
             } else {
                 console.error("Critical Bot Launch Error:", err.message);
             }
@@ -189,10 +188,16 @@ async function run() {
 
         console.log("Runner Engine Active. Initializing Browser...");
 
-        const connectingUI = ui.generatePlayerUI({ status: 'CONNECTING', meetingUrl });
-        await bot.telegram.editMessageText(chatId, playerMessageId, null, connectingUI.text, {
-            parse_mode: 'Markdown', ...connectingUI.markup
-        });
+        try {
+            const connectingUI = ui.generatePlayerUI({ status: 'CONNECTING', meetingUrl });
+            await bot.telegram.editMessageText(chatId, playerMessageId, null, connectingUI.text, {
+                parse_mode: 'Markdown', ...connectingUI.markup
+            });
+        } catch (e) {
+            if (!e.description?.includes("message is not modified")) {
+                console.log("UI Update Note:", e.message);
+            }
+        }
 
         const tunnel = await browserManager.launchMeeting(meetingUrl);
         currentDashboardUrl = tunnel.url;
