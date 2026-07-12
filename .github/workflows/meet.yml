@@ -51,8 +51,11 @@ jobs:
         env:
           VNC_PASSWORD: ${{ secrets.VNC_PASSWORD }}
         run: |
-          Xvfb :99 -screen 0 1920x1080x24 &
+          Xvfb :99 -screen 0 1920x1080x24 -ac +extension GLX +render -noreset &
           sleep 3
+          # Start Window Manager to prevent black screen on tab switch
+          fluxbox -display :99 &
+          sleep 2
           pulseaudio -D --exit-idle-time=-1 --disallow-exit
           sleep 2
           pactl load-module module-virtual-sink sink_name=v_sink

@@ -22,8 +22,7 @@ def run_transcription(audio_file, output_file):
 
         print(f"💎 GHOST meet | AI ENGINE: Transcribing using {device.upper()}...")
 
-        # Transcribe without forcing a language to let Whisper auto-detect
-        # This is BEST for Hinglish (Hindi + English)
+        # Transcribe with auto-detection for maximum accuracy in Hinglish
         result = model.transcribe(
             audio_file,
             verbose=False,
@@ -35,7 +34,8 @@ def run_transcription(audio_file, output_file):
             f.write("💎 GHOST meet | AI TRANSCRIPTION (OPENAI WHISPER)\n")
             f.write("━━━━━━━━━━━━━━━━━━━━━━\n")
             f.write(f"Engine: OpenAI Whisper AI (Small Model)\n")
-            f.write(f"Detected Language: {result.get('language', 'unknown')}\n\n")
+            f.write(f"Detected Language: {result.get('language', 'unknown')}\n")
+            f.write("Mode: Native Hinglish (Hindi + English Mix)\n\n")
 
             # Extract segments for better timestamping
             for segment in result['segments']:

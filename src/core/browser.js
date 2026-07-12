@@ -43,7 +43,10 @@ async function launchMeeting(url) {
                 '--use-fake-ui-for-media-stream',
                 '--use-fake-device-for-media-stream',
                 '--disable-notifications',
-                '--no-first-run'
+                '--no-first-run',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding'
             ]
         });
 

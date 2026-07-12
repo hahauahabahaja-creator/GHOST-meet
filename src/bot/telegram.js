@@ -188,7 +188,7 @@ bot.command('stop', async (ctx) => {
             await ctx.replyWithVideo(
                 { source: assets.videoChunks[i] },
                 { 
-                    caption: `📽 GHOST meet Recording | Part ${i + 1} of ${assets.videoChunks.length}\n⏱ Duration: ${minutes}:${seconds.toString().padStart(2, '0')}`
+                    caption: `📽 GHOST meet Recording | Part ${i + 1} of ${assets.videoChunks.length}\n⏱ Duration: ${timeStr}`
                 }
             );
         }

@@ -85,6 +85,7 @@ async function stopRecording() {
     const videoChunks = await processChunks(masterMp4Path);
 
     // 2. Transcription (Start AFTER chunking to avoid CPU lag during processing)
+    // Pass meeting URL if needed for metadata, though not currently used in transcribe.py
     const transcriptPath = await transcriber.transcribe(audioExtractPath);
 
     return {
