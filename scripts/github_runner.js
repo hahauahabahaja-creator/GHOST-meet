@@ -217,34 +217,39 @@ function registerCommands() {
     });
 
     bot.action('cmd_stop', async (ctx) => {
-        if (!isRecording) return ctx.answerCbQuery("⚠️ No Active Recording");
-
+        // Runner logic: ALWAYS handle the stop
         try {
             await ctx.answerCbQuery("💾 Finalizing Stream...");
+
+            if (isRecording === false && !heartbeatInterval) return; // Prevent double trigger
+
             isRecording = false;
             stopHeartbeat();
 
-            // Status Update
-            const stoppingUI = ui.generatePlayerUI({ status: 'STOPPING', progress: 10 });
-            await ctx.telegram.editMessageText(chatId, playerMessageId, null, stoppingUI.text, { parse_mode: 'Markdown', ...stoppingUI.markup });
+            console.log("Runner: Stop Action Triggered. Starting Asset Finalization...");
 
-            // CRITICAL: Call stopRecording and wait
-            console.log("Calling recorder.stopRecording()...");
+            // 1. Instant Status Update
+            const stoppingUI = ui.generatePlayerUI({ status: 'STOPPING', progress: 10 });
+            await ctx.telegram.editMessageText(chatId, playerMessageId, null, stoppingUI.text, {
+                parse_mode: 'Markdown', ...stoppingUI.markup
+            });
+
+            // 2. STOP RECORDING (Wait for files)
             const assets = await recorder.stopRecording();
-            console.log("Stop complete. Assets generated:", assets);
 
             if (!assets || (assets.videoChunks.length === 0 && !assets.transcriptPath)) {
-                throw new Error("No assets generated during finalization.");
+                console.error("No assets found. Check FFmpeg logs.");
+                await ctx.reply("⚠️ *Error:* No recording assets were generated.");
+                process.exit(1);
             }
 
-            // Phase 2: Uploading
-            const uploadingUI = ui.generatePlayerUI({ status: 'FINALIZING', progress: 80 });
+            // 3. Uploading State
+            const uploadingUI = ui.generatePlayerUI({ status: 'FINALIZING', progress: 50 });
             await ctx.telegram.editMessageText(chatId, playerMessageId, null, uploadingUI.text, { parse_mode: 'Markdown' });
 
+            // 4. Send Files
             for (let i = 0; i < assets.videoChunks.length; i++) {
-                const chunk = assets.videoChunks[i];
-                console.log(`Uploading: ${chunk}`);
-                await ctx.replyWithVideo({ source: chunk }, { caption: `📽 Part ${i + 1}` });
+                await ctx.replyWithVideo({ source: assets.videoChunks[i] }, { caption: `📽 Part ${i+1}` });
             }
 
             if (assets.audioPath) {
@@ -255,25 +260,16 @@ function registerCommands() {
                 await ctx.replyWithDocument({ source: assets.transcriptPath }, { caption: "📄 AI Meeting Transcript" });
             }
 
+            // 5. Success UI
             const completedUI = ui.generatePlayerUI({ status: 'COMPLETED', progress: 100 });
             await ctx.telegram.editMessageText(chatId, playerMessageId, null, completedUI.text, { parse_mode: 'Markdown' });
 
-            // 🚀 CRITICAL: Force meeting exit by killing browser processes
-            console.log("Forcing meeting exit (Manual Purge)...");
-            try {
-                await browserManager.closeBrowser();
-                // Final bash-level nuke
-                const { execSync } = require('child_process');
-                execSync('pkill -9 -f chrome || true');
-                execSync('pkill -9 Xvfb || true');
-            } catch (e) {}
+            console.log("Runner: All assets uploaded. Cleaning up...");
+            await browserManager.closeBrowser();
 
-            setTimeout(() => {
-                console.log("Runner complete. Exiting.");
-                process.exit(0);
-            }, 3000);
+            setTimeout(() => process.exit(0), 3000);
         } catch (err) {
-            console.error("Stop button failure:", err);
+            console.error("Runner Stop Failure:", err);
             await ctx.reply(`❌ Stop Failure: ${err.message}`);
             process.exit(1);
         }

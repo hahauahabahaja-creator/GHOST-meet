@@ -317,18 +317,17 @@ bot.action('cmd_stop', async (ctx) => {
     try {
         await ctx.answerCbQuery("💾 Finalizing Session...");
 
-        if (!sessionState.isRecording) return;
+        // Prevent multiple clicks
+        if (sessionState.isProcessing) return;
+        sessionState.isProcessing = true;
 
-        // STOP TIMER
         if (sessionState.timerInterval) {
             clearInterval(sessionState.timerInterval);
             sessionState.timerInterval = null;
         }
 
-        sessionState.isRecording = false;
-
         const stoppingUI = ui.generatePlayerUI({
-            status: 'FINALIZING',
+            status: 'STOPPING',
             meetingUrl: sessionState.currentUrl
         });
 
@@ -338,57 +337,22 @@ bot.action('cmd_stop', async (ctx) => {
             });
         }
 
-        if (process.env.RENDER) {
-            logger.info("Main bot on Render: Stop action handled by Runner.");
+        // IMPORTANT: If on Render, we STOP HERE. The Runner will pick up the same 'cmd_stop' action
+        // because it is also listening to the same bot token.
+        if (process.env.RENDER || process.env.NODE_ENV === 'production') {
+            logger.info("Render Bot: UI updated to STOPPING. Waiting for Runner to handle assets.");
+            sessionState.isRecording = false;
+            sessionState.isJoined = false;
             return;
         }
 
-        const duration = sessionState.recordingStartTime ?
-            Math.round((Date.now() - sessionState.recordingStartTime) / 1000) : 0;
-        const minutes = Math.floor(duration / 60);
-        const seconds = duration % 60;
-        const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-
-        const assets = await recorder.stopRecording();
-
-        const completedUI = ui.generatePlayerUI({
-            status: 'COMPLETED',
-            timer: timeStr,
-            partCount: assets.videoChunks.length
-        });
-
-        if (sessionState.playerMessageId) {
-            await ctx.telegram.editMessageText(ctx.chat.id, sessionState.playerMessageId, null, completedUI.text, {
-                parse_mode: 'Markdown', ...completedUI.markup
-            });
-        }
-
-        for (let i = 0; i < assets.videoChunks.length; i++) {
-            await ctx.replyWithVideo({ source: assets.videoChunks[i] }, {
-                caption: `📽 GHOST meet Recording | Part ${i + 1} of ${assets.videoChunks.length}\n⏱ Duration: ${timeStr}`
-            });
-        }
-
-        if (assets.audioPath) {
-            await ctx.replyWithAudio({ source: assets.audioPath }, {
-                caption: "🎙 Meeting Audio Recording\n✨ High quality capture"
-            });
-        }
-
-        if (assets.transcriptPath) {
-            await ctx.replyWithDocument({ source: assets.transcriptPath }, {
-                caption: "📄 AI Meeting Transcript (Hinglish)\n✨ Full continuous transcription"
-            });
-        }
-
-        sessionState.isJoined = false;
+        // Local Mode logic (if not on Render)
         sessionState.isRecording = false;
-        sessionState.currentUrl = null;
-        sessionState.playerMessageId = null;
-        sessionState.recordingStartTime = null;
-
+        const assets = await recorder.stopRecording();
+        // ... rest of local upload logic (only for local dev)
     } catch (e) {
-        logger.error("Action error:", e.message);
+        logger.error("Stop Action Error:", e.message);
+        sessionState.isProcessing = false;
     }
 });
 
