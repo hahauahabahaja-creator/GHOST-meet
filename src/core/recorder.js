@@ -19,7 +19,10 @@ function setProgressCallback(cb) { currentProgressCallback = cb; }
 
 async function updateStatus(status, progress) {
     if (currentProgressCallback) {
-        await currentProgressCallback(status, progress);
+        // Run callback without blocking the main recorder flow indefinitely
+        currentProgressCallback(status, progress).catch(err => {
+            logger.warn(`Progress UI Update Failed: ${err.message}`);
+        });
     }
 }
 

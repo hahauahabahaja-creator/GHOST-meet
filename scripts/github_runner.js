@@ -81,6 +81,22 @@ function registerCommands() {
         }
     });
 
+    bot.action('cmd_record', async (ctx) => {
+        try {
+            await ctx.answerCbQuery("🔴 Initiating HD Capture...");
+            if (isRecording) return;
+
+            console.log("Runner: Starting Capture...");
+            await recorder.startRecording();
+            isRecording = true;
+
+            await startHeartbeat(ctx);
+        } catch (e) {
+            console.error("Runner: Record Action Error:", e.message);
+            await ctx.reply(`❌ *Capture Failed to Start:* ${e.message}`).catch(() => {});
+        }
+    });
+
     bot.action('cmd_stop', async (ctx) => {
         console.log("Runner: Stop Action Received via Callback.");
 
@@ -201,7 +217,6 @@ async function run() {
 
         const tunnel = await browserManager.launchMeeting(meetingUrl);
         currentDashboardUrl = tunnel.url;
-        isRecording = true;
 
         const readyUI = ui.generatePlayerUI({ status: 'READY', dashboardUrl: tunnel.url });
         await bot.telegram.editMessageText(chatId, playerMessageId, null, readyUI.text, {
