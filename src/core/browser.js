@@ -1,128 +1,75 @@
-const puppeteer = require('puppeteer-core');
-const { exec, spawn } = require('child_process');
-const path = require('path');
+const { chromium } = require('playwright-extra');
+const stealth = require('puppeteer-extra-plugin-stealth')();
+const { spawn, exec } = require('child_process');
 const logger = require('../utils/logger');
 const fs = require('fs-extra');
+const path = require('path');
+
+chromium.use(stealth);
 
 let browser = null;
+let context = null;
 let page = null;
 let tunnelInstance = null;
-let tunnelUrl = null;
 
-/**
- * Initializes the virtual frame buffer and launches the meeting
- */
 async function launchMeeting(url) {
     try {
-        logger.info("Connecting to pre-initialized Virtual Display & Visual Bridge...");
+        logger.info("Initializing Ultimate Ghost Engine (Brave + Playwright)...");
 
-        process.env.DISPLAY = ':99';
+        // 1. Setup Serveo Tunnel
+        tunnelInstance = spawn('ssh', ['-o', 'StrictHostKeyChecking=no', '-R', '80:localhost:6080', 'serveo.net']);
 
-        // 1. Setup Serveo Tunnel (Unlimited & No IP check)
-        logger.info("Establishing Serveo Unlimited Tunnel...");
-        try {
-            tunnelInstance = spawn('ssh', ['-o', 'StrictHostKeyChecking=no', '-R', '80:localhost:6080', 'serveo.net'], {
-                detached: false
-            });
+        const tunnelUrl = await new Promise((resolve) => {
+            const timeout = setTimeout(() => resolve("http://localhost:6080"), 20000);
+            const handleOutput = (data) => {
+                const match = data.toString().match(/https:\/\/[a-z0-9.-]+\.(serveo\.net|serveousercontent\.com)/i);
+                if (match && !match[0].includes('console.serveo.net')) {
+                    clearTimeout(timeout);
+                    resolve(match[0]);
+                }
+            };
+            tunnelInstance.stdout.on('data', handleOutput);
+            tunnelInstance.stderr.on('data', handleOutput);
+        });
 
-            tunnelUrl = await new Promise((resolve) => {
-                let found = false;
-                const timeout = setTimeout(() => {
-                    if (!found) {
-                        logger.warn("Serveo URL extraction timed out. Using fallback.");
-                        resolve("http://localhost:6080");
-                    }
-                }, 25000);
-
-                const handleOutput = (data) => {
-                    const msg = data.toString();
-                    logger.info(`[SERVEO DEBUG] ${msg}`);
-
-                    const match = msg.match(/https:\/\/[a-z0-9.-]+\.(serveo\.net|serveousercontent\.com)/i);
-                    if (match && !match[0].includes('console.serveo.net')) {
-                        found = true;
-                        clearTimeout(timeout);
-                        resolve(match[0]);
-                    }
-                };
-
-                tunnelInstance.stdout.on('data', handleOutput);
-                tunnelInstance.stderr.on('data', handleOutput);
-
-                tunnelInstance.on('error', (err) => {
-                    logger.error(`Serveo Process Error: ${err.message}`);
-                    resolve("http://localhost:6080");
-                });
-            });
-
-            logger.info(`SUCCESS: Serveo tunnel established: ${tunnelUrl}`);
-        } catch (err) {
-            logger.error(`Serveo failed: ${err.message}`);
-            tunnelUrl = "http://localhost:6080";
-        }
-
-        logger.info(`Launching Ultimate Stealth Puppeteer on DISPLAY :99 for URL: ${url}`);
-        browser = await puppeteer.launch({
+        // 2. Launch Brave with Playwright
+        browser = await chromium.launch({
+            executablePath: process.env.BRAVE_PATH || '/usr/bin/brave-browser',
             headless: false,
-            executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome-stable',
             args: [
+                '--start-maximized',
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                '--window-size=1920,1080',
-                '--window-position=0,0',
-                '--start-maximized',
-                '--start-fullscreen',
-                '--hide-scrollbars',
-                '--disable-infobars',
-                '--autoplay-policy=no-user-gesture-required',
                 '--use-fake-ui-for-media-stream',
                 '--use-fake-device-for-media-stream',
-                '--display=:99',
-                // ? FORCE RESOLUTION & SCALE
-                '--force-device-scale-factor=1',
-                '--high-dpi-support=1',
-                // ? ULTIMATE STEALTH: Bypass Detection
-                '--disable-blink-features=AutomationControlled',
-                '--disable-web-security',
-                '--allow-running-insecure-content',
-                '--no-first-run',
-                '--no-default-browser-check',
-                '--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
-            ],
-            defaultViewport: null
+                '--disable-notifications',
+                '--no-first-run'
+            ]
         });
 
-        page = await browser.newPage();
-
-        await page.evaluateOnNewDocument(() => {
-            Object.defineProperty(navigator, 'webdriver', { get: () => false });
-            window.chrome = { runtime: {} };
-            Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
-            Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+        context = await browser.newContext({
+            viewport: { width: 1920, height: 1080 },
+            userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36 Brave/1.63.165'
         });
 
-        await page.goto(url, { waitUntil: 'networkidle2', timeout: 90000 });
+        page = await context.newPage();
 
-        logger.info("Browser session initialized.");
+        logger.info(`Brave Engine Dispatched for: ${url}`);
+        await page.goto(url, { waitUntil: 'networkidle', timeout: 120000 });
 
-        // FIXED: Using 'resize=scale' and 'scale=1.0' with 'autoconnect=1' for a perfect "Fit to Window" look.
-        // Also ensure the dashboard is easier to use.
         const vncPass = process.env.VNC_PASSWORD || "";
-        const oneClickUrl = `${tunnelUrl}/vnc.html?autoconnect=true&password=${vncPass}&resize=scale&scale=1.0&quality=6`;
-        logger.info(`Final Dashboard URL: ${oneClickUrl}`);
+        // Updated URL for auto-fit and auto-connect
+        const dashboardUrl = `${tunnelUrl}/vnc.html?autoconnect=true&password=${vncPass}&resize=scale&scale=1.0`;
 
-        return { url: oneClickUrl };
+        return { url: dashboardUrl };
     } catch (error) {
-        logger.error("Browser Launch Error:", error);
+        logger.error("Ghost Engine Failure:", error);
         throw error;
     }
 }
 
-/**
- * Capture a real-time screenshot of the meeting
- */
 async function takeScreenshot() {
-    if (!page) throw new Error("Browser session not active.");
+    if (!page) return null;
     const screenshotPath = path.join(__dirname, '../../output/screenshot.png');
     await fs.ensureDir(path.dirname(screenshotPath));
     await page.screenshot({ path: screenshotPath });
@@ -130,9 +77,11 @@ async function takeScreenshot() {
 }
 
 async function closeBrowser() {
-    if (browser) await browser.close();
-    if (tunnelInstance) tunnelInstance.kill();
-    exec('pkill Xvfb');
+    try {
+        if (browser) await browser.close();
+        if (tunnelInstance) tunnelInstance.kill();
+        exec('pkill Xvfb');
+    } catch (e) {}
 }
 
 module.exports = { launchMeeting, takeScreenshot, closeBrowser, getPage: () => page };
