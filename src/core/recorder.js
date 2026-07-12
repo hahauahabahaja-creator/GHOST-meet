@@ -39,64 +39,69 @@ async function startRecording() {
 }
 
 async function stopRecording() {
-    return new Promise(async (resolve) => {
-        logger.info("Stopping FFMPEG process...");
+    logger.info("Initiating stopRecording sequence...");
 
-        if (!ffmpegProcess) {
-            logger.warn("No active FFmpeg process to stop.");
-            return resolve({ videoChunks: [], transcriptPath: null });
-        }
+    // 1. Force Browser to close first (Leaves meeting)
+    try {
+        logger.info("Triggering browser close to leave meeting...");
+        const browserManager = require('./browser'); // Lazy load
+        await browserManager.closeBrowser();
+    } catch (e) {
+        logger.warn("Manual browser close failed:", e.message);
+    }
 
-        // 1. Force Browser to close first (Leaves meeting)
-        try {
-            logger.info("Triggering browser close to leave meeting...");
-            const browserManager = require('./browser'); // Lazy load
-            await browserManager.closeBrowser();
-        } catch (e) {
-            logger.warn("Manual browser close failed:", e.message);
-        }
-
-        // 2. Kill FFmpeg aggressively to ensure it stops
-        const forceKill = setTimeout(() => {
-            logger.warn("FFmpeg hang detected, forcing SIGKILL...");
-            ffmpegProcess.kill('SIGKILL');
-        }, 5000);
-
-        ffmpegProcess.on('exit', async () => {
-            clearTimeout(forceKill);
-            logger.info("FFmpeg process terminated. Starting cleanup...");
-
-            try {
-                // Wait 2s for file handles to release
-                await new Promise(r => setTimeout(r, 2000));
-
-                if (!fs.existsSync(rawVideoPath)) {
-                    throw new Error("Master recording (MKV) not found.");
-                }
-
-                logger.info("Converting MKV to MP4...");
-                execSync(`ffmpeg -i "${rawVideoPath}" -c copy -movflags +faststart -y "${masterMp4Path}"`);
-
-                logger.info("Splitting video into chunks...");
-                const videoChunks = await processChunks(masterMp4Path);
-
-                logger.info("Starting Whisper AI Transcription...");
-                const transcriptPath = await transcriber.transcribe(audioExtractPath);
-
-                resolve({ videoChunks, audioPath: audioExtractPath, transcriptPath });
-            } catch (err) {
-                logger.error(`Post-processing Failure: ${err.message}`);
-                resolve({ videoChunks: [], audioPath: null, transcriptPath: null });
-            }
-        });
-
-        // Try graceful quit first
+    // 2. Stop FFmpeg
+    if (ffmpegProcess) {
+        logger.info("Stopping active FFmpeg process...");
         try {
             ffmpegProcess.stdin.write('q');
         } catch (e) {
             ffmpegProcess.kill('SIGTERM');
         }
-    });
+
+        // Wait for exit or force kill
+        await new Promise((resolve) => {
+            const forceKill = setTimeout(() => {
+                logger.warn("FFmpeg hang detected, forcing SIGKILL...");
+                ffmpegProcess.kill('SIGKILL');
+                resolve();
+            }, 5000);
+
+            ffmpegProcess.on('exit', () => {
+                clearTimeout(forceKill);
+                logger.info("FFmpeg exited gracefully.");
+                resolve();
+            });
+        });
+    } else {
+        logger.warn("No active FFmpeg process found. Checking for existing files...");
+    }
+
+    // 3. Post-Processing (Even if ffmpegProcess was null, we check for files)
+    try {
+        // Wait for file handles to release
+        await new Promise(r => setTimeout(r, 2000));
+
+        if (!fs.existsSync(rawVideoPath)) {
+            logger.error("Master recording (MKV) not found at: " + rawVideoPath);
+            return { videoChunks: [], audioPath: null, transcriptPath: null };
+        }
+
+        logger.info("Converting MKV to MP4...");
+        execSync(`ffmpeg -i "${rawVideoPath}" -c copy -movflags +faststart -y "${masterMp4Path}"`);
+
+        logger.info("Splitting video into chunks...");
+        const videoChunks = await processChunks(masterMp4Path);
+
+        logger.info("Starting Whisper AI Transcription...");
+        const transcriptPath = await transcriber.transcribe(audioExtractPath);
+
+        logger.info("Stop sequence complete. Assets ready.");
+        return { videoChunks, audioPath: audioExtractPath, transcriptPath };
+    } catch (err) {
+        logger.error(`Post-processing Failure: ${err.message}`);
+        return { videoChunks: [], audioPath: null, transcriptPath: null };
+    }
 }
 
 async function processChunks(filePath) {
