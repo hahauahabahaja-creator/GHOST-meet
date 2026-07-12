@@ -233,35 +233,70 @@ function registerCommands() {
             });
 
             console.log("Runner: Triggering recorder.stopRecording()...");
-            const assets = await recorder.stopRecording();
 
-            if (!assets || (assets.videoChunks.length === 0 && !assets.transcriptPath)) {
+            // Set a timeout for the entire stop process to prevent infinite hang (15 minutes)
+            const stopTimeout = setTimeout(() => {
+                console.error("Runner: stopRecording timed out after 15 minutes!");
+                ctx.reply("⚠️ *Timeout:* Asset processing took too long (15m limit). Check logs.").catch(() => {});
+            }, 15 * 60 * 1000);
+
+            const assets = await recorder.stopRecording();
+            clearTimeout(stopTimeout);
+
+            console.log("Runner: stopRecording returned assets:", JSON.stringify(assets, null, 2));
+
+            if (!assets || (!assets.videoChunks?.length && !assets.transcriptPath)) {
                 console.log("Runner: No assets generated or files not ready.");
+                const errorUI = ui.generatePlayerUI({ status: 'ERROR' });
+                await ctx.telegram.editMessageText(chatId, playerMessageId, null, errorUI.text + "\n\n❌ No recording files found.", { parse_mode: 'Markdown' });
                 return;
             }
 
             const uploadingUI = ui.generatePlayerUI({ status: 'FINALIZING', progress: 50 });
             await ctx.telegram.editMessageText(chatId, playerMessageId, null, uploadingUI.text, { parse_mode: 'Markdown' });
 
-            for (let i = 0; i < assets.videoChunks.length; i++) {
-                await ctx.replyWithVideo({ source: assets.videoChunks[i] }, { caption: `📽 Part ${i+1}` });
+            console.log("Runner: Starting media uploads...");
+
+            // 1. Upload Video Chunks
+            if (assets.videoChunks?.length) {
+                for (let i = 0; i < assets.videoChunks.length; i++) {
+                    const chunk = assets.videoChunks[i];
+                    console.log(`Runner: Uploading Video Part ${i+1}: ${chunk}`);
+                    await ctx.replyWithVideo({ source: chunk }, {
+                        caption: `📽 GHOST meet | Part ${i+1}`
+                    });
+                }
             }
 
+            // 2. Upload Audio
             if (assets.audioPath) {
-                await ctx.replyWithAudio({ source: assets.audioPath }, { caption: "🎙 Meeting Audio Recording" });
+                console.log(`Runner: Uploading Audio: ${assets.audioPath}`);
+                await ctx.replyWithAudio({ source: assets.audioPath }, {
+                    caption: "🎙 Meeting Audio Recording"
+                });
             }
 
+            // 3. Upload Transcript
             if (assets.transcriptPath) {
-                await ctx.replyWithDocument({ source: assets.transcriptPath }, { caption: "📄 AI Meeting Transcript" });
+                console.log(`Runner: Uploading Transcript: ${assets.transcriptPath}`);
+                await ctx.replyWithDocument({ source: assets.transcriptPath }, {
+                    caption: "📄 AI Meeting Transcript (Hinglish)"
+                });
             }
 
             const completedUI = ui.generatePlayerUI({ status: 'COMPLETED', progress: 100 });
             await ctx.telegram.editMessageText(chatId, playerMessageId, null, completedUI.text, { parse_mode: 'Markdown' });
 
-            console.log("Runner: Sequence Complete. Exiting...");
-            setTimeout(() => process.exit(0), 3000);
+            console.log("Runner: Sequence Complete. Cleaning up...");
+            await browserManager.closeBrowser().catch(e => console.log("Browser close error:", e.message));
+
+            setTimeout(() => {
+                console.log("Runner: Final Exit.");
+                process.exit(0);
+            }, 5000);
         } catch (err) {
             console.error("Runner Callback Stop Error:", err.message);
+            await ctx.reply(`❌ *System Error during Finalization:* ${err.message}`).catch(() => {});
         }
     });
 }
