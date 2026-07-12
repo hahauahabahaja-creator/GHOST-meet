@@ -160,6 +160,15 @@ function registerCommands() {
             console.log("Runner: Sequence Complete. Cleaning up...");
             await browserManager.closeBrowser().catch(() => {});
 
+            // Wake up the main bot on Render
+            if (process.env.RENDER_APP_NAME) {
+                const axios = require('axios');
+                console.log(`Runner: Notifying Render Bot (${process.env.RENDER_APP_NAME}) to resume...`);
+                await axios.get(`https://${process.env.RENDER_APP_NAME}.onrender.com/resume`).catch(e => {
+                    console.error("Runner: Failed to wake up Render bot:", e.message);
+                });
+            }
+
             setTimeout(() => {
                 console.log("Runner: Final Exit.");
                 process.exit(0);

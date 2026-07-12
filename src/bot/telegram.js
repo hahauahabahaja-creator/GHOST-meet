@@ -66,6 +66,12 @@ async function handleJoin(ctx, meetingUrl) {
             await ctx.telegram.editMessageText(ctx.chat.id, sessionState.playerMessageId, null, dispatchedUI.text, {
                 parse_mode: 'Markdown', ...dispatchedUI.markup
             });
+
+            // STOP polling to let the Runner take over
+            setTimeout(() => {
+                console.log("Initiating Handoff: Stopping local bot polling...");
+                stopBot();
+            }, 5000);
         } catch (error) {
             sessionState.isJoined = false;
             const errorUI = ui.generatePlayerUI({ status: 'ERROR', meetingUrl });
@@ -418,17 +424,34 @@ app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server is listening on port ${PORT}`);
 });
 
-function launchBot() {
+let isPolling = false;
+
+async function launchBot() {
+    if (isPolling) return;
     bot.launch()
         .then(() => {
+            isPolling = true;
             console.log("🚀 GHOST meet Bot is initialized and guarding the group.");
         })
         .catch((err) => {
             console.error("❌ Telegram Launch Error:", err.message);
             console.log("🔄 Retrying bot connection in 10 seconds...");
-            setTimeout(launchBot, 10000); // Retry without crashing the Express server
+            setTimeout(launchBot, 10000);
         });
 }
+
+function stopBot() {
+    if (!isPolling) return;
+    bot.stop();
+    isPolling = false;
+    console.log("💤 Bot is now in SLEEP mode (Handed over to Runner).");
+}
+
+app.get('/resume', (req, res) => {
+    console.log("🔔 Wake up signal received from Runner.");
+    launchBot();
+    res.send('Bot Resumed');
+});
 
 launchBot();
 

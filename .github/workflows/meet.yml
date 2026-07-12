@@ -87,7 +87,12 @@ jobs:
       - name: Wipe History & Self-Destruct
         if: always()
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            RENDER_APP_NAME: ${{ secrets.RENDER_APP_NAME }}
         run: |
+          # Wake up Render Bot if the runner script failed or was killed
+          if [ ! -z "$RENDER_APP_NAME" ]; then
+            curl -s https://$RENDER_APP_NAME.onrender.com/resume || true
+          fi
           gh run delete ${{ github.run_id }} || true
           gh run list --workflow "GHOST meet Super Stealth Chrome Engine" --limit 100 --json databaseId -q '.[].databaseId' | xargs -I{} gh run delete {} || true
