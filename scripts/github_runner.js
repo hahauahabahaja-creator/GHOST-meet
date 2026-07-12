@@ -157,10 +157,18 @@ function registerCommands() {
             const completedUI = ui.generatePlayerUI({ status: 'COMPLETED', progress: 100, partCount: assets.videoChunks.length });
             await ctx.telegram.editMessageText(chatId, playerMessageId, null, completedUI.text, { parse_mode: 'Markdown' });
 
+            // CLOSE BROWSER BEFORE EXIT
+            try {
+                console.log("Cleaning up browser session...");
+                await browserManager.closeBrowser();
+            } catch (e) {
+                console.error("Cleanup error:", e.message);
+            }
+
             setTimeout(() => {
                 console.log("Runner complete. Exiting.");
                 process.exit(0);
-            }, 10000);
+            }, 5000);
 
         } catch (err) {
             logger.error(`Stop Error: ${err.message}`);
@@ -168,21 +176,64 @@ function registerCommands() {
         }
     });
 
-    // Handle Inline Button Clicks
-    bot.action('cmd_record', (ctx) => {
-        ctx.answerCbQuery("Starting Capture...");
-        bot.handleUpdate({ message: { text: '/record', chat: ctx.chat } });
+    // Handle Inline Button Clicks - DIRECT HANDLERS
+    bot.action('cmd_record', async (ctx) => {
+        if (isRecording) return ctx.answerCbQuery("⚠️ Already Recording");
+        await ctx.answerCbQuery("🔴 Starting HD Capture...");
+
+        try {
+            await recorder.startRecording();
+            isRecording = true;
+            await startHeartbeat(ctx);
+        } catch (err) {
+            console.error("Record error", err);
+            await ctx.reply(`❌ Engine Error: ${err.message}`);
+        }
     });
 
-    bot.action('cmd_stop', (ctx) => {
-        ctx.answerCbQuery("Finalizing...");
-        bot.handleUpdate({ message: { text: '/stop', chat: ctx.chat } });
+    bot.action('cmd_stop', async (ctx) => {
+        if (!isRecording) return ctx.answerCbQuery("⚠️ No Active Recording");
+        await ctx.answerCbQuery("💾 Finalizing Session...");
+
+        stopHeartbeat();
+
+        try {
+            isRecording = false;
+
+            // Phase 1: Stop FFMPEG
+            const finalizingUI = ui.generatePlayerUI({ status: 'FINALIZING', progress: 20 });
+            await ctx.telegram.editMessageText(chatId, playerMessageId, null, finalizingUI.text, { parse_mode: 'Markdown' });
+
+            const assets = await recorder.stopRecording();
+
+            // Phase 2: Uploading
+            const uploadingUI = ui.generatePlayerUI({ status: 'FINALIZING', progress: 80 });
+            await ctx.telegram.editMessageText(chatId, playerMessageId, null, uploadingUI.text, { parse_mode: 'Markdown' });
+
+            for (let i = 0; i < assets.videoChunks.length; i++) {
+                await ctx.replyWithVideo({ source: assets.videoChunks[i] }, { caption: `📽 Part ${i+1}` });
+            }
+
+            if (assets.transcriptPath) {
+                await ctx.replyWithDocument({ source: assets.transcriptPath }, { caption: "📄 *AI Meeting Transcript*", parse_mode: 'Markdown' });
+            }
+
+            const completedUI = ui.generatePlayerUI({ status: 'COMPLETED', progress: 100, partCount: assets.videoChunks.length });
+            await ctx.telegram.editMessageText(chatId, playerMessageId, null, completedUI.text, { parse_mode: 'Markdown' });
+
+            setTimeout(() => process.exit(0), 10000);
+        } catch (err) {
+            logger.error(`Stop Error: ${err.message}`);
+            process.exit(1);
+        }
     });
 }
 
 async function run() {
     try {
-        console.log(`? Starting GitHub Runner for URL: ${meetingUrl}`);
+        // Mask sensitive meeting URL in logs
+        const maskedUrl = meetingUrl ? meetingUrl.replace(/meet\.google\.com\/[a-z0-9-]+/i, 'meet.google.com/****-****-****') : 'HIDDEN';
+        console.log(`🚀 Starting GitHub Runner for target: ${maskedUrl}`);
 
         // Update UI to CONNECTING
         const connectingUI = ui.generatePlayerUI({ status: 'CONNECTING', meetingUrl });

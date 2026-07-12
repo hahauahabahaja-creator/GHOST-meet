@@ -45,7 +45,7 @@ jobs:
 
       - name: Fast Python Install
         run: |
-          pip install SpeechRecognition indic-transliteration --break-system-packages --quiet
+          pip install openai-whisper torch --break-system-packages --quiet
 
       - name: Initialize Display & Audio & Visual Bridge
         env:
@@ -60,7 +60,7 @@ jobs:
           pactl load-module module-virtual-sink sink_name=v_sink
           pactl set-default-sink v_sink
           
-          # ? FORCE MAX VOLUME (Fixes silent videos and missing STT)
+          # 🔊 FORCE MAX VOLUME (Fixes silent videos and missing STT)
           pactl set-sink-mute v_sink 0
           pactl set-sink-volume v_sink 100%
           pactl set-source-mute v_sink.monitor 0
@@ -97,7 +97,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "? Wiping previous history and current trace..."
+          echo "✨ Wiping previous history and current trace..."
           # Authorize GH CLI
           echo "${{ secrets.GITHUB_TOKEN }}" | gh auth login --with-token
           

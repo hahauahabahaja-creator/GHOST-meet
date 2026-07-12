@@ -105,9 +105,10 @@ async function launchMeeting(url) {
 
         logger.info("Browser session initialized.");
 
-        // FIXED: Using 'resize=scale' and 'scale=0.8' to make the view more compact and fit on smaller screens
+        // FIXED: Using 'resize=scale' and 'scale=1.0' with 'autoconnect=1' for a perfect "Fit to Window" look.
+        // Also ensure the dashboard is easier to use.
         const vncPass = process.env.VNC_PASSWORD || "";
-        const oneClickUrl = `${tunnelUrl}/vnc.html?autoconnect=true&password=${vncPass}&resize=scale&scale=0.8`;
+        const oneClickUrl = `${tunnelUrl}/vnc.html?autoconnect=true&password=${vncPass}&resize=scale&scale=1.0&quality=6`;
         logger.info(`Final Dashboard URL: ${oneClickUrl}`);
 
         return { url: oneClickUrl };

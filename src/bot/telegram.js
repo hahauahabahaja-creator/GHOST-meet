@@ -39,8 +39,8 @@ bot.use(async (ctx, next) => {
         if (ctx.message && ctx.message.text && ctx.message.text.startsWith('/')) {
             logger.warn(`Unauthorized access attempt from Chat ID: ${chatId}`);
             return ctx.replyWithMarkdown(
-                "?? *GHOST meet | ACCESS DENIED*\n" +
-                "??????????????????????\n" +
+                "🛸 *GHOST meet | ACCESS DENIED*\n" +
+                "━━━━━━━━━━━━━━━━━━━━━━\n" +
                 "This terminal is encrypted and locked to a specific authorized group.\n\n" +
                 "*System Action:* Connection Rejected."
             );
@@ -56,20 +56,20 @@ bot.use(async (ctx, next) => {
  */
 bot.start((ctx) => {
     const welcomeUI =
-        "? *GHOST meet | SYSTEM TERMINAL*\n" +
-        "??????????????????????\n" +
-        "Status: ? *OPERATIONAL*\n" +
-        "Security: ? *ENCRYPTED*\n\n" +
+        "🛸 *GHOST meet | SYSTEM TERMINAL*\n" +
+        "━━━━━━━━━━━━━━━━━━━━━━\n" +
+        "Status: 🟢 *OPERATIONAL*\n" +
+        "Security: 🔒 *ENCRYPTED*\n\n" +
         "Welcome, Operative. The capture suite is on standby.\n\n" +
-        "? *Operational Commands:*\n" +
-        "? `/join <url>` - Deploy Virtual Frame Buffer\n" +
-        "? `/record` - Initiate 1080p HD Capture\n" +
-        "? `/stop` - Finalize, Split & Transcribe\n" +
-        "? `/status` - Engine Diagnostics";
+        "📍 *Operational Commands:*\n" +
+        "• `/join <url>` - Deploy Virtual Frame Buffer\n" +
+        "• `/record` - Initiate 1080p HD Capture\n" +
+        "• `/stop` - Finalize, Split & Transcribe\n" +
+        "• `/status` - Engine Diagnostics";
 
     ctx.replyWithMarkdown(welcomeUI, Markup.inlineKeyboard([
-        [Markup.button.callback('? Check Diagnostics', 'engine_status')],
-        [Markup.button.callback('? Help & Documentation', 'help_guide')]
+        [Markup.button.callback('📊 Check Diagnostics', 'engine_status')],
+        [Markup.button.callback('🛠 Help & Documentation', 'help_guide')]
     ]));
 });
 
@@ -79,12 +79,12 @@ bot.start((ctx) => {
 bot.command('join', async (ctx) => {
     // PREVENT DOUBLE EXECUTION
     if (sessionState.isJoined) {
-        return ctx.replyWithMarkdown("?? *Already Joined*\n??????????????????????\nMeeting is already active. Use `/stop` to end the session first.");
+        return ctx.replyWithMarkdown("⚠️ *Already Joined*\n━━━━━━━━━━━━━━━━━━━━━━\nMeeting is already active. Use `/stop` to end the session first.");
     }
 
     const parts = ctx.message.text.split(' ');
     if (parts.length < 2) {
-        return ctx.replyWithMarkdown("? *Error:* URL missing. Use `/join <link>`");
+        return ctx.replyWithMarkdown("❌ *Error:* URL missing. Use `/join <link>`");
     }
 
     const meetingUrl = parts[1];
@@ -112,7 +112,7 @@ bot.command('join', async (ctx) => {
             logger.error("GitHub Trigger Failure:", error);
             sessionState.isJoined = false;
             const errorUI = ui.generatePlayerUI({ status: 'ERROR', meetingUrl });
-            await ctx.telegram.editMessageText(ctx.chat.id, sessionState.playerMessageId, null, errorUI.text + `\n\n? *Dispatch Failure:* ${error.message}`, { parse_mode: 'Markdown' });
+            await ctx.telegram.editMessageText(ctx.chat.id, sessionState.playerMessageId, null, errorUI.text + `\n\n🚨 *Dispatch Failure:* ${error.message}`, { parse_mode: 'Markdown' });
         }
         return;
     }
@@ -120,7 +120,7 @@ bot.command('join', async (ctx) => {
     // Local/Non-Render logic
     try {
         const tunnel = await browserManager.launchMeeting(meetingUrl);
-        const successUI = ui.generatePlayerUI({ status: 'READY', meetingUrl: tunnel.url });
+        const successUI = ui.generatePlayerUI({ status: 'READY', dashboardUrl: tunnel.url });
         await ctx.telegram.editMessageText(ctx.chat.id, sessionState.playerMessageId, null, successUI.text, {
             parse_mode: 'Markdown',
             ...successUI.markup
@@ -129,7 +129,7 @@ bot.command('join', async (ctx) => {
         logger.error("Deployment Failure:", error);
         sessionState.isJoined = false;
         const errorUI = ui.generatePlayerUI({ status: 'ERROR', meetingUrl });
-        await ctx.telegram.editMessageText(ctx.chat.id, sessionState.playerMessageId, null, errorUI.text + `\n\n? *System Failure:* ${error.message}`, { parse_mode: 'Markdown' });
+        await ctx.telegram.editMessageText(ctx.chat.id, sessionState.playerMessageId, null, errorUI.text + `\n\n🚨 *System Failure:* ${error.message}`, { parse_mode: 'Markdown' });
     }
 });
 
@@ -138,11 +138,11 @@ bot.command('join', async (ctx) => {
  */
 bot.command('record', async (ctx) => {
     if (!sessionState.isJoined) {
-        return ctx.replyWithMarkdown("? *Error:* Not joined yet. Use `/join <url>` first.");
+        return ctx.replyWithMarkdown("❌ *Error:* Not joined yet. Use `/join <url>` first.");
     }
 
     if (sessionState.isRecording) {
-        return ctx.replyWithMarkdown("?? *Already Recording*\n??????????????????????\nUse `/stop` to end the current recording.");
+        return ctx.replyWithMarkdown("⚠️ *Already Recording*\n━━━━━━━━━━━━━━━━━━━━━━\nUse `/stop` to end the current recording.");
     }
 
     sessionState.isRecording = true;
@@ -184,7 +184,7 @@ bot.command('record', async (ctx) => {
         logger.error("Recording Start Failure:", error);
         sessionState.isRecording = false;
         if (sessionState.timerInterval) clearInterval(sessionState.timerInterval);
-        await ctx.replyWithMarkdown(`? *Recording Error:* ${error.message}`);
+        await ctx.replyWithMarkdown(`❌ *Recording Error:* ${error.message}`);
     }
 });
 
@@ -193,7 +193,7 @@ bot.command('record', async (ctx) => {
  */
 bot.command('stop', async (ctx) => {
     if (!sessionState.isRecording) {
-        return ctx.replyWithMarkdown("?? *Not Recording*\n??????????????????????\nStart recording with `/record` first.");
+        return ctx.replyWithMarkdown("⚠️ *Not Recording*\n━━━━━━━━━━━━━━━━━━━━━━\nStart recording with `/record` first.");
     }
 
     // STOP TIMER
@@ -242,7 +242,7 @@ bot.command('stop', async (ctx) => {
             await ctx.replyWithVideo(
                 { source: assets.videoChunks[i] },
                 { 
-                    caption: `? GHOST meet Recording | Part ${i + 1} of ${assets.videoChunks.length}\n? Duration: ${minutes}:${seconds.toString().padStart(2, '0')}` 
+                    caption: `📽 GHOST meet Recording | Part ${i + 1} of ${assets.videoChunks.length}\n⏱ Duration: ${minutes}:${seconds.toString().padStart(2, '0')}`
                 }
             );
         }
@@ -251,7 +251,7 @@ bot.command('stop', async (ctx) => {
         if (assets.transcriptPath) {
             await ctx.replyWithDocument(
                 { source: assets.transcriptPath },
-                { caption: "? AI Meeting Transcript (Hinglish)\n? Full continuous transcription" }
+                { caption: "📄 AI Meeting Transcript (Hinglish)\n✨ Full continuous transcription" }
             );
         }
 
@@ -259,22 +259,22 @@ bot.command('stop', async (ctx) => {
         sessionState.isJoined = false;
         sessionState.isRecording = false;
         sessionState.currentUrl = null;
-        sessionState.lastMessageId = null;
+        sessionState.playerMessageId = null;
         sessionState.recordingStartTime = null;
 
         const finalUI =
-            "? *SESSION COMPLETE*\n" +
-            "??????????????????????\n" +
-            "? All assets uploaded successfully.\n" +
-            "? Files secured in group storage.\n" +
-            "? Engine hibernated.\n\n" +
+            "✨ *SESSION COMPLETE*\n" +
+            "━━━━━━━━━━━━━━━━━━━━━━\n" +
+            "✅ All assets uploaded successfully.\n" +
+            "🔐 Files secured in group storage.\n" +
+            "🚀 Engine hibernated.\n\n" +
             "Use `/join <url>` to start a new session.";
         await ctx.replyWithMarkdown(finalUI);
 
     } catch (error) {
         logger.error("Finalization Failure:", error);
         sessionState.isRecording = false;
-        await ctx.replyWithMarkdown(`⚠️ *Stop Error:* ${error.message}\n\n_System attempted to recover files, check logs._`);
+        await ctx.replyWithMarkdown(`❌ *Stop Error:* ${error.message}\n\n_System attempted to recover files, check logs._`);
     }
 });
 
@@ -282,8 +282,8 @@ bot.command('stop', async (ctx) => {
  * /status - Real-time diagnostics and session status
  */
 bot.command('status', (ctx) => {
-    const recordingStatus = sessionState.isRecording ? "? ACTIVE" : "? IDLE";
-    const joinStatus = sessionState.isJoined ? "? CONNECTED" : "? DISCONNECTED";
+    const recordingStatus = sessionState.isRecording ? "🔴 ACTIVE" : "⚪ IDLE";
+    const joinStatus = sessionState.isJoined ? "✅ CONNECTED" : "❌ DISCONNECTED";
     
     let duration = "0:00";
     if (sessionState.recordingStartTime) {
@@ -293,20 +293,132 @@ bot.command('status', (ctx) => {
     }
 
     const diagnosticUI =
-        "? *SYSTEM DIAGNOSTICS*\n" +
-        "??????????????????????\n" +
-        `? Session Status: ${joinStatus}\n` +
-        `? Recording: ${recordingStatus}\n` +
-        `? Duration: *${duration}*\n` +
-        "? Kernel: *Stable*\n" +
-        "? Virtual Display: *Active (:99)*\n" +
-        "? FFMPEG Pipeline: *Ready*\n" +
-        "? STT Engine: *Bilingual Mode (Hindi/Hinglish)*\n" +
-        "? Storage: *Optimized*";
+        "📟 *SYSTEM DIAGNOSTICS*\n" +
+        "━━━━━━━━━━━━━━━━━━━━━━\n" +
+        `• Session Status: ${joinStatus}\n` +
+        `• Recording: ${recordingStatus}\n` +
+        `• Duration: *${duration}*\n` +
+        "• Kernel: *Stable*\n" +
+        "• Virtual Display: *Active (:99)*\n" +
+        "• FFMPEG Pipeline: *Ready*\n" +
+        "• STT Engine: *Bilingual Mode (Hindi/Hinglish)*\n" +
+        "• Storage: *Optimized*";
     ctx.replyWithMarkdown(diagnosticUI);
 });
 
 // Inline Actions
+bot.action('cmd_record', async (ctx) => {
+    try {
+        await ctx.answerCbQuery("🔴 Initiating HD Capture...");
+
+        if (sessionState.isRecording) return;
+
+        sessionState.isRecording = true;
+        sessionState.recordingStartTime = Date.now();
+
+        await recorder.startRecording();
+
+        // START REAL-TIME TIMER UPDATES
+        let elapsedSeconds = 0;
+        sessionState.timerInterval = setInterval(async () => {
+            elapsedSeconds++;
+            const minutes = Math.floor(elapsedSeconds / 60);
+            const seconds = elapsedSeconds % 60;
+            const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+            const updatedUI = ui.generatePlayerUI({
+                status: 'RECORDING',
+                timer: timeStr,
+                meetingUrl: sessionState.currentUrl
+            });
+
+            try {
+                if (sessionState.playerMessageId) {
+                    await ctx.telegram.editMessageText(
+                        ctx.chat.id,
+                        sessionState.playerMessageId,
+                        undefined,
+                        updatedUI.text,
+                        { parse_mode: 'Markdown', ...updatedUI.markup }
+                    );
+                }
+            } catch (err) {
+                logger.warn("Timer update error (expected):", err.message);
+            }
+        }, 5000);
+    } catch (e) {
+        logger.error("Action error:", e.message);
+    }
+});
+
+bot.action('cmd_stop', async (ctx) => {
+    try {
+        await ctx.answerCbQuery("💾 Finalizing Session...");
+
+        if (!sessionState.isRecording) return;
+
+        // STOP TIMER
+        if (sessionState.timerInterval) {
+            clearInterval(sessionState.timerInterval);
+            sessionState.timerInterval = null;
+        }
+
+        sessionState.isRecording = false;
+
+        const stoppingUI = ui.generatePlayerUI({
+            status: 'FINALIZING',
+            meetingUrl: sessionState.currentUrl
+        });
+
+        if (sessionState.playerMessageId) {
+            await ctx.telegram.editMessageText(ctx.chat.id, sessionState.playerMessageId, null, stoppingUI.text, {
+                parse_mode: 'Markdown', ...stoppingUI.markup
+            });
+        }
+
+        const duration = sessionState.recordingStartTime ?
+            Math.round((Date.now() - sessionState.recordingStartTime) / 1000) : 0;
+        const minutes = Math.floor(duration / 60);
+        const seconds = duration % 60;
+        const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+        const assets = await recorder.stopRecording();
+
+        const completedUI = ui.generatePlayerUI({
+            status: 'COMPLETED',
+            timer: timeStr,
+            partCount: assets.videoChunks.length
+        });
+
+        if (sessionState.playerMessageId) {
+            await ctx.telegram.editMessageText(ctx.chat.id, sessionState.playerMessageId, null, completedUI.text, {
+                parse_mode: 'Markdown', ...completedUI.markup
+            });
+        }
+
+        for (let i = 0; i < assets.videoChunks.length; i++) {
+            await ctx.replyWithVideo({ source: assets.videoChunks[i] }, {
+                caption: `📽 GHOST meet Recording | Part ${i + 1} of ${assets.videoChunks.length}\n⏱ Duration: ${timeStr}`
+            });
+        }
+
+        if (assets.transcriptPath) {
+            await ctx.replyWithDocument({ source: assets.transcriptPath }, {
+                caption: "📄 AI Meeting Transcript (Hinglish)\n✨ Full continuous transcription"
+            });
+        }
+
+        sessionState.isJoined = false;
+        sessionState.isRecording = false;
+        sessionState.currentUrl = null;
+        sessionState.playerMessageId = null;
+        sessionState.recordingStartTime = null;
+
+    } catch (e) {
+        logger.error("Action error:", e.message);
+    }
+});
+
 bot.action('engine_status', (ctx) => {
     ctx.answerCbQuery();
     ctx.reply("System pulse: 100%. Encryption layers active. Engine performing within parameters.");
@@ -329,11 +441,11 @@ app.listen(PORT, '0.0.0.0', () => {
 function launchBot() {
     bot.launch()
         .then(() => {
-            console.log("? GHOST meet Bot is initialized and guarding the group.");
+            console.log("🚀 GHOST meet Bot is initialized and guarding the group.");
         })
         .catch((err) => {
-            console.error("? Telegram Launch Error:", err.message);
-            console.log("? Retrying bot connection in 10 seconds...");
+            console.error("❌ Telegram Launch Error:", err.message);
+            console.log("🔄 Retrying bot connection in 10 seconds...");
             setTimeout(launchBot, 10000); // Retry without crashing the Express server
         });
 }
