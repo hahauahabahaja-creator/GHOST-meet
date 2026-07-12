@@ -317,15 +317,7 @@ bot.action('cmd_stop', async (ctx) => {
     try {
         await ctx.answerCbQuery("💾 Finalizing Session...");
 
-        // Prevent multiple clicks
-        if (sessionState.isProcessing) return;
-        sessionState.isProcessing = true;
-
-        if (sessionState.timerInterval) {
-            clearInterval(sessionState.timerInterval);
-            sessionState.timerInterval = null;
-        }
-
+        // 1. UPDATE UI INSTANTLY (Both Render and Runner see this)
         const stoppingUI = ui.generatePlayerUI({
             status: 'STOPPING',
             meetingUrl: sessionState.currentUrl
@@ -337,22 +329,56 @@ bot.action('cmd_stop', async (ctx) => {
             });
         }
 
-        // IMPORTANT: If on Render, we STOP HERE. The Runner will pick up the same 'cmd_stop' action
-        // because it is also listening to the same bot token.
-        if (process.env.RENDER || process.env.NODE_ENV === 'production') {
-            logger.info("Render Bot: UI updated to STOPPING. Waiting for Runner to handle assets.");
+        // 2. STOP TIMER (Both)
+        if (sessionState.timerInterval) {
+            clearInterval(sessionState.timerInterval);
+            sessionState.timerInterval = null;
+        }
+
+        // 3. RENDER BOT LOGIC: Just Stop Here.
+        if (process.env.RENDER) {
+            logger.info("Main bot on Render: UI updated. Runner should handle the recording stop.");
             sessionState.isRecording = false;
             sessionState.isJoined = false;
             return;
         }
 
-        // Local Mode logic (if not on Render)
+        // 4. RUNNER/LOCAL LOGIC: Actually stop the recording
+        logger.info("Local/Runner Engine: Stopping recording and processing assets...");
         sessionState.isRecording = false;
+
         const assets = await recorder.stopRecording();
-        // ... rest of local upload logic (only for local dev)
+
+        if (!assets || (assets.videoChunks.length === 0 && !assets.transcriptPath)) {
+            logger.warn("No assets generated.");
+            return;
+        }
+
+        // Processing UI
+        const processingUI = ui.generatePlayerUI({ status: 'FINALIZING', meetingUrl: sessionState.currentUrl });
+        await ctx.telegram.editMessageText(ctx.chat.id, sessionState.playerMessageId, null, processingUI.text, { parse_mode: 'Markdown' });
+
+        // UPLOAD
+        for (let i = 0; i < assets.videoChunks.length; i++) {
+            await ctx.replyWithVideo({ source: assets.videoChunks[i] }, {
+                caption: `📽 Part ${i + 1} | Duration: Captured`
+            });
+        }
+
+        if (assets.audioPath) {
+            await ctx.replyWithAudio({ source: assets.audioPath }, { caption: "🎙 Audio Recording" });
+        }
+
+        if (assets.transcriptPath) {
+            await ctx.replyWithDocument({ source: assets.transcriptPath }, { caption: "📄 Transcript" });
+        }
+
+        const completedUI = ui.generatePlayerUI({ status: 'COMPLETED' });
+        await ctx.telegram.editMessageText(ctx.chat.id, sessionState.playerMessageId, null, completedUI.text, { parse_mode: 'Markdown' });
+
+        sessionState.isJoined = false;
     } catch (e) {
         logger.error("Stop Action Error:", e.message);
-        sessionState.isProcessing = false;
     }
 });
 

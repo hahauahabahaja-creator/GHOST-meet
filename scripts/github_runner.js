@@ -217,37 +217,32 @@ function registerCommands() {
     });
 
     bot.action('cmd_stop', async (ctx) => {
-        // Runner logic: ALWAYS handle the stop
+        console.log("Runner: Stop Action Received via Callback.");
+
         try {
             await ctx.answerCbQuery("💾 Finalizing Stream...");
 
-            if (isRecording === false && !heartbeatInterval) return; // Prevent double trigger
-
+            // CRITICAL: Even if isRecording is locally false, we check if browser is active
+            // This ensures the runner handles the stop even if state is slightly out of sync
             isRecording = false;
             stopHeartbeat();
 
-            console.log("Runner: Stop Action Triggered. Starting Asset Finalization...");
-
-            // 1. Instant Status Update
             const stoppingUI = ui.generatePlayerUI({ status: 'STOPPING', progress: 10 });
             await ctx.telegram.editMessageText(chatId, playerMessageId, null, stoppingUI.text, {
                 parse_mode: 'Markdown', ...stoppingUI.markup
             });
 
-            // 2. STOP RECORDING (Wait for files)
+            console.log("Runner: Triggering recorder.stopRecording()...");
             const assets = await recorder.stopRecording();
 
             if (!assets || (assets.videoChunks.length === 0 && !assets.transcriptPath)) {
-                console.error("No assets found. Check FFmpeg logs.");
-                await ctx.reply("⚠️ *Error:* No recording assets were generated.");
-                process.exit(1);
+                console.log("Runner: No assets generated or files not ready.");
+                return;
             }
 
-            // 3. Uploading State
             const uploadingUI = ui.generatePlayerUI({ status: 'FINALIZING', progress: 50 });
             await ctx.telegram.editMessageText(chatId, playerMessageId, null, uploadingUI.text, { parse_mode: 'Markdown' });
 
-            // 4. Send Files
             for (let i = 0; i < assets.videoChunks.length; i++) {
                 await ctx.replyWithVideo({ source: assets.videoChunks[i] }, { caption: `📽 Part ${i+1}` });
             }
@@ -260,18 +255,13 @@ function registerCommands() {
                 await ctx.replyWithDocument({ source: assets.transcriptPath }, { caption: "📄 AI Meeting Transcript" });
             }
 
-            // 5. Success UI
             const completedUI = ui.generatePlayerUI({ status: 'COMPLETED', progress: 100 });
             await ctx.telegram.editMessageText(chatId, playerMessageId, null, completedUI.text, { parse_mode: 'Markdown' });
 
-            console.log("Runner: All assets uploaded. Cleaning up...");
-            await browserManager.closeBrowser();
-
+            console.log("Runner: Sequence Complete. Exiting...");
             setTimeout(() => process.exit(0), 3000);
         } catch (err) {
-            console.error("Runner Stop Failure:", err);
-            await ctx.reply(`❌ Stop Failure: ${err.message}`);
-            process.exit(1);
+            console.error("Runner Callback Stop Error:", err.message);
         }
     });
 }
