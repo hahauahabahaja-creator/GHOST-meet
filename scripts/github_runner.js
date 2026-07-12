@@ -130,17 +130,16 @@ function registerCommands() {
         try {
             isRecording = false;
 
-            // Phase 1: Stop FFMPEG
+            // Phase 2: Processing
             const finalizingUI = ui.generatePlayerUI({ status: 'FINALIZING', progress: 20 });
             await ctx.telegram.editMessageText(chatId, playerMessageId, null, finalizingUI.text, { parse_mode: 'Markdown' });
 
-            const stopPromise = recorder.stopRecording();
+            const assets = await recorder.stopRecording();
 
-            // Phase 2: Processing
-            const processingUI = ui.generatePlayerUI({ status: 'FINALIZING', progress: 50 });
-            await ctx.telegram.editMessageText(chatId, playerMessageId, null, processingUI.text, { parse_mode: 'Markdown' });
-
-            const assets = await stopPromise;
+            // Check if assets were actually generated
+            if (!assets || (!assets.videoChunks.length && !assets.transcriptPath)) {
+                throw new Error("Recording finalized but no assets were generated. Check FFmpeg/Audio logs.");
+            }
 
             // Phase 3: Uploading
             const uploadingUI = ui.generatePlayerUI({ status: 'FINALIZING', progress: 80 });
