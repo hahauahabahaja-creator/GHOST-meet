@@ -164,6 +164,11 @@ bot.command('stop', async (ctx) => {
         });
     }
 
+    if (process.env.RENDER) {
+        logger.info("Main bot on Render: Stop command handled by Runner.");
+        return;
+    }
+
     try {
         // Get recording duration
         const duration = sessionState.recordingStartTime ? 
@@ -331,6 +336,11 @@ bot.action('cmd_stop', async (ctx) => {
             await ctx.telegram.editMessageText(ctx.chat.id, sessionState.playerMessageId, null, stoppingUI.text, {
                 parse_mode: 'Markdown', ...stoppingUI.markup
             });
+        }
+
+        if (process.env.RENDER) {
+            logger.info("Main bot on Render: Stop action handled by Runner.");
+            return;
         }
 
         const duration = sessionState.recordingStartTime ?
