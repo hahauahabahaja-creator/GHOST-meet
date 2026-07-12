@@ -17,18 +17,16 @@ def run_transcription(audio_file, output_file):
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     try:
-        # Using 'base' model: Fast, accurate, and fits GitHub RAM perfectly
-        model = whisper.load_model("base", device=device)
+        # Using 'small' model: Much more accurate than 'base', still fits in 7GB RAM
+        model = whisper.load_model("small", device=device)
 
         print(f"💎 GHOST meet | AI ENGINE: Transcribing using {device.upper()}...")
 
-        # Transcribe with Hinglish context (Hindi + English)
-        # Using task='transcribe' to keep it in original language (Hinglish)
+        # Transcribe without forcing a language to let Whisper auto-detect
+        # This is BEST for Hinglish (Hindi + English)
         result = model.transcribe(
             audio_file,
             verbose=False,
-            language='hi',
-            task='transcribe',
             fp16=False if device == "cpu" else True
         )
 
@@ -36,8 +34,8 @@ def run_transcription(audio_file, output_file):
             f.write("━━━━━━━━━━━━━━━━━━━━━━\n")
             f.write("💎 GHOST meet | AI TRANSCRIPTION (OPENAI WHISPER)\n")
             f.write("━━━━━━━━━━━━━━━━━━━━━━\n")
-            f.write("Engine: OpenAI Whisper AI (Base Model)\n")
-            f.write("Mode: Native Hinglish (Hindi + English Mix)\n\n")
+            f.write(f"Engine: OpenAI Whisper AI (Small Model)\n")
+            f.write(f"Detected Language: {result.get('language', 'unknown')}\n\n")
 
             # Extract segments for better timestamping
             for segment in result['segments']:

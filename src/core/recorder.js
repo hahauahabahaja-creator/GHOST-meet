@@ -42,7 +42,7 @@ async function startRecording() {
         '-c:a', 'aac',
         '-b:a', '128k',
         '-y', rawVideoPath, // Record to MKV first
-        '-map', '1:a', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', '-af', 'loudnorm', audioExtractPath
+        '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', '-af', 'loudnorm', audioExtractPath
     ]);
 
     ffmpegProcess.on('error', (err) => logger.error(`FFMPEG Startup Error: ${err.message}`));
