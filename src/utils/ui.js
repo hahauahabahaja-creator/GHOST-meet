@@ -13,7 +13,9 @@ const STATUS_ICONS = {
     RECORDING: '🔴',
     FINALIZING: '💾',
     COMPLETED: '✨',
-    ERROR: '🚨'
+    ERROR: '🚨',
+    STARTING: '⚡',
+    STOPPING: '💾'
 };
 
 function generatePlayerUI(params) {
@@ -50,9 +52,13 @@ function generatePlayerUI(params) {
     uiText += `━━━━━━━━━━━━━━━━━━━━━━\n`;
 
     if (status === 'READY') {
-        uiText += `✅ System Ready. Click the dashboard link to login, then click START below.`;
+        uiText += `✅ System Ready. Click START below to begin.`;
+    } else if (status === 'STARTING') {
+        uiText += `⚡ Initializing engine... Please wait.`;
     } else if (status === 'RECORDING') {
         uiText += `⏺ CAPTURING LIVE FEED...`;
+    } else if (status === 'STOPPING') {
+        uiText += `💾 Finalizing capture... Please wait.`;
     } else if (status === 'FINALIZING') {
         uiText += `⚙️ Processing & Uploading...`;
     }
@@ -63,6 +69,9 @@ function generatePlayerUI(params) {
         buttons.push([Markup.button.callback('⏺ START CAPTURE', 'cmd_record')]);
     } else if (status === 'RECORDING') {
         buttons.push([Markup.button.callback('🛑 STOP & SAVE', 'cmd_stop')]);
+    } else if (status === 'STARTING' || status === 'STOPPING') {
+        // Show disabled/loading button
+        buttons.push([Markup.button.callback('⏳ PROCESSING...', 'none')]);
     }
 
     return {

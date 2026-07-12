@@ -10,9 +10,7 @@
     <list default="true" id="1436f5db-d10f-4cd8-ac6d-ad283918f9f3" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/scripts/github_runner.js" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/github_runner.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/bot/telegram.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/bot/telegram.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/core/browser.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/browser.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/core/transcribe.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/transcribe.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/utils/ui.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/utils/ui.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />

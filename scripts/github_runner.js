@@ -179,9 +179,13 @@ function registerCommands() {
     // Handle Inline Button Clicks - DIRECT HANDLERS
     bot.action('cmd_record', async (ctx) => {
         if (isRecording) return ctx.answerCbQuery("⚠️ Already Recording");
-        await ctx.answerCbQuery("🔴 Starting HD Capture...");
+        await ctx.answerCbQuery("⚡ Booting Capture Engine...");
 
         try {
+            // Instant Loading UI
+            const startingUI = ui.generatePlayerUI({ status: 'STARTING', dashboardUrl: currentDashboardUrl });
+            await ctx.telegram.editMessageText(chatId, playerMessageId, null, startingUI.text, { parse_mode: 'Markdown', ...startingUI.markup });
+
             await recorder.startRecording();
             isRecording = true;
             await startHeartbeat(ctx);
@@ -193,11 +197,15 @@ function registerCommands() {
 
     bot.action('cmd_stop', async (ctx) => {
         if (!isRecording) return ctx.answerCbQuery("⚠️ No Active Recording");
-        await ctx.answerCbQuery("💾 Finalizing Session...");
+        await ctx.answerCbQuery("💾 Finalizing Stream...");
 
         stopHeartbeat();
 
         try {
+            // Instant Loading UI
+            const stoppingUI = ui.generatePlayerUI({ status: 'STOPPING', dashboardUrl: currentDashboardUrl });
+            await ctx.telegram.editMessageText(chatId, playerMessageId, null, stoppingUI.text, { parse_mode: 'Markdown', ...stoppingUI.markup });
+
             isRecording = false;
 
             // Phase 1: Stop FFMPEG
@@ -235,13 +243,10 @@ async function run() {
         const maskedUrl = meetingUrl ? meetingUrl.replace(/meet\.google\.com\/[a-z0-9-]+/i, 'meet.google.com/****-****-****') : 'HIDDEN';
         console.log(`🚀 Starting GitHub Runner for target: ${maskedUrl}`);
 
-        // Update UI to CONNECTING
-        const connectingUI = ui.generatePlayerUI({ status: 'CONNECTING', meetingUrl });
-        await bot.telegram.editMessageText(chatId, playerMessageId, null, connectingUI.text, {
-            parse_mode: 'Markdown', ...connectingUI.markup
-        });
+        // 1. Register Commands & Actions FIRST
+        registerCommands();
 
-        // 1. IMMEDIATE WEBHOOK LOCK: Force Render bot silence first
+        // 2. IMMEDIATE WEBHOOK LOCK: Force Render bot silence first
         async function forceWebhookLock() {
             try {
                 console.log("Applying Webhook Lock to silence Render bot...");
@@ -255,38 +260,38 @@ async function run() {
         }
         await forceWebhookLock();
 
-        // 2. Launch Browser
+        // 3. Start Polling BEFORE long-running async tasks
+        const botPromise = bot.launch({
+            dropPendingUpdates: true,
+            polling: {
+                timeout: 30,
+                limit: 100
+            }
+        }).then(() => console.log("Runner Bot Polling Active.")).catch(err => {
+            if (err.response && err.response.error_code === 409) {
+                console.log("Conflict detected, retrying...");
+            } else {
+                throw err;
+            }
+        });
+
+        // 4. Update UI to CONNECTING
+        const connectingUI = ui.generatePlayerUI({ status: 'CONNECTING', meetingUrl });
+        await bot.telegram.editMessageText(chatId, playerMessageId, null, connectingUI.text, {
+            parse_mode: 'Markdown', ...connectingUI.markup
+        });
+
+        // 5. Launch Browser
         const tunnel = await browserManager.launchMeeting(meetingUrl);
         currentDashboardUrl = tunnel.url;
 
-        // 3. Update Player UI to READY
+        // 6. Update Player UI to READY
         const readyUI = ui.generatePlayerUI({ status: 'READY', dashboardUrl: tunnel.url });
         await bot.telegram.editMessageText(chatId, playerMessageId, null, readyUI.text, {
             parse_mode: 'Markdown', ...readyUI.markup
         });
 
-        // 4. Register and Start Polling
-        registerCommands();
-
-        async function startBot() {
-            try {
-                await bot.launch({
-                    dropPendingUpdates: true,
-                    polling: {
-                        timeout: 30,
-                        limit: 100
-                    }
-                });
-                console.log("Runner Bot in full control.");
-            } catch (err) {
-                if (err.response && err.response.error_code === 409) {
-                    await forceWebhookLock();
-                    return startBot();
-                }
-                throw err;
-            }
-        }
-        await startBot();
+        await botPromise;
 
     } catch (error) {
         console.error("Runner Error:", error);
