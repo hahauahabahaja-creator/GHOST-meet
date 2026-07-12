@@ -137,18 +137,21 @@ function registerCommands() {
             console.log("Runner: Starting media uploads...");
 
             for (let i = 0; i < assets.videoChunks.length; i++) {
+                await ctx.telegram.editMessageText(chatId, playerMessageId, null, `💾 *FINALIZING*\n━━━━━━━━━━━━━━━━━━━━━━\n📤 Uploading Video Part ${i+1}/${assets.videoChunks.length}...`, { parse_mode: 'Markdown' }).catch(() => {});
                 await ctx.replyWithVideo({ source: assets.videoChunks[i] }, {
                     caption: `📽 GHOST meet | Part ${i+1}`
                 });
             }
 
             if (assets.audioPath) {
+                await ctx.telegram.editMessageText(chatId, playerMessageId, null, `💾 *FINALIZING*\n━━━━━━━━━━━━━━━━━━━━━━\n📤 Uploading Audio Recording...`, { parse_mode: 'Markdown' }).catch(() => {});
                 await ctx.replyWithAudio({ source: assets.audioPath }, {
                     caption: "🎙 Meeting Audio Recording"
                 });
             }
 
             if (assets.transcriptPath) {
+                await ctx.telegram.editMessageText(chatId, playerMessageId, null, `💾 *FINALIZING*\n━━━━━━━━━━━━━━━━━━━━━━\n📤 Uploading AI Transcript...`, { parse_mode: 'Markdown' }).catch(() => {});
                 await ctx.replyWithDocument({ source: assets.transcriptPath }, {
                     caption: "📄 AI Meeting Transcript (Hinglish)"
                 });

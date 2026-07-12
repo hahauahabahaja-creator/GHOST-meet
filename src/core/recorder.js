@@ -104,21 +104,34 @@ async function stopRecording() {
             return { videoChunks: [], audioPath: null, transcriptPath: null };
         }
 
-        await updateStatus('FINALIZING', 30);
+        await updateStatus('FINALIZING', 20);
         logger.info("Converting MKV to MP4...");
         await execPromise(`ffmpeg -i "${rawVideoPath}" -c copy -movflags +faststart -y "${masterMp4Path}"`);
 
-        await updateStatus('FINALIZING', 50);
+        await updateStatus('FINALIZING', 40);
         logger.info("Splitting video into chunks...");
         const videoChunks = await processChunks(masterMp4Path);
 
-        await updateStatus('FINALIZING', 70);
-        logger.info("Starting Whisper AI Transcription...");
-        const transcriptPath = await transcriber.transcribe(audioExtractPath);
+        await updateStatus('FINALIZING', 60);
+
+        let transcriptPath = null;
+        try {
+            logger.info("Starting Whisper AI Transcription...");
+            // Add a timeout for transcription to prevent indefinite hang
+            const transcriptionPromise = transcriber.transcribe(audioExtractPath);
+            const transcriptionTimeout = new Promise(r => setTimeout(() => r(null), 5 * 60 * 1000)); // 5 min max
+            transcriptPath = await Promise.race([transcriptionPromise, transcriptionTimeout]);
+        } catch (e) {
+            logger.error(`Transcription failed: ${e.message}`);
+        }
 
         await updateStatus('FINALIZING', 90);
         logger.info("Stop sequence complete.");
-        return { videoChunks, audioPath: audioExtractPath, transcriptPath };
+        return {
+            videoChunks,
+            audioPath: fs.existsSync(audioExtractPath) ? audioExtractPath : null,
+            transcriptPath
+        };
     } catch (err) {
         logger.error(`Post-processing Failure: ${err.message}`);
         return { videoChunks: [], audioPath: null, transcriptPath: null };
