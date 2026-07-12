@@ -196,54 +196,52 @@ function registerCommands() {
 
     bot.action('cmd_stop', async (ctx) => {
         if (!isRecording) return ctx.answerCbQuery("⚠️ No Active Recording");
-        await ctx.answerCbQuery("💾 Finalizing Stream...");
-
-        stopHeartbeat();
 
         try {
-            // Instant Loading UI
-            const stoppingUI = ui.generatePlayerUI({ status: 'STOPPING', dashboardUrl: currentDashboardUrl });
+            await ctx.answerCbQuery("💾 Finalizing Stream...");
+            isRecording = false;
+            stopHeartbeat();
+
+            // Status Update
+            const stoppingUI = ui.generatePlayerUI({ status: 'STOPPING', progress: 10 });
             await ctx.telegram.editMessageText(chatId, playerMessageId, null, stoppingUI.text, { parse_mode: 'Markdown', ...stoppingUI.markup });
 
-            isRecording = false;
-
-            // Phase 1: Stop FFMPEG & Post-Process
-            const processingUI = ui.generatePlayerUI({ status: 'FINALIZING', progress: 40 });
-            await ctx.telegram.editMessageText(chatId, playerMessageId, null, processingUI.text, { parse_mode: 'Markdown' });
-
+            // CRITICAL: Call stopRecording and wait
+            console.log("Calling recorder.stopRecording()...");
             const assets = await recorder.stopRecording();
+            console.log("Stop complete. Assets generated:", assets);
 
-            // LOG FOR DEBUGGING
-            console.log(`Assets Generated: Video Chunks: ${assets.videoChunks.length}, Transcript: ${!!assets.transcriptPath}`);
-
-            // Check if assets were actually generated
             if (!assets || (assets.videoChunks.length === 0 && !assets.transcriptPath)) {
-                console.error("Critical Failure: No assets returned from recorder.");
-                throw new Error("Recording finalized but no assets were generated.");
+                throw new Error("No assets generated during finalization.");
             }
 
             // Phase 2: Uploading
             const uploadingUI = ui.generatePlayerUI({ status: 'FINALIZING', progress: 80 });
             await ctx.telegram.editMessageText(chatId, playerMessageId, null, uploadingUI.text, { parse_mode: 'Markdown' });
 
-            // Send Video Segments
             for (const chunk of assets.videoChunks) {
-                console.log(`Uploading Video Chunk: ${chunk}`);
-                await ctx.replyWithVideo({ source: chunk }, { caption: `📽 GHOST meet | Part ${assets.videoChunks.indexOf(chunk) + 1}` });
+                console.log(`Uploading: ${chunk}`);
+                await ctx.replyWithVideo({ source: chunk }, { caption: `📽 Part ${assets.videoChunks.indexOf(chunk) + 1}` });
             }
 
-            // Send Transcript
             if (assets.transcriptPath) {
-                console.log(`Uploading Transcript: ${assets.transcriptPath}`);
-                await ctx.replyWithDocument({ source: assets.transcriptPath }, { caption: "📄 *AI Meeting Transcript*" });
+                await ctx.replyWithDocument({ source: assets.transcriptPath }, { caption: "📄 AI Meeting Transcript" });
             }
 
-            const completedUI = ui.generatePlayerUI({ status: 'COMPLETED', progress: 100, partCount: assets.videoChunks.length });
+            const completedUI = ui.generatePlayerUI({ status: 'COMPLETED', progress: 100 });
             await ctx.telegram.editMessageText(chatId, playerMessageId, null, completedUI.text, { parse_mode: 'Markdown' });
 
-            setTimeout(() => process.exit(0), 10000);
+            // 🚀 CRITICAL: Force meeting exit by killing browser processes
+            console.log("Forcing meeting exit...");
+            await browserManager.closeBrowser();
+
+            setTimeout(() => {
+                console.log("Runner complete. Exiting.");
+                process.exit(0);
+            }, 3000);
         } catch (err) {
-            logger.error(`Stop Error: ${err.message}`);
+            console.error("Stop button failure:", err);
+            await ctx.reply(`❌ Stop Failure: ${err.message}`);
             process.exit(1);
         }
     });

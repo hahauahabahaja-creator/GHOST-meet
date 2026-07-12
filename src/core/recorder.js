@@ -36,80 +36,82 @@ async function startRecording() {
     ]);
 
     ffmpegProcess.on('error', (err) => logger.error(`FFMPEG Startup Error: ${err.message}`));
-
-    // Log ffmpeg output for debugging
-    ffmpegProcess.stderr.on('data', (data) => {
-        if (data.toString().includes('Error')) logger.error(`FFmpeg Log: ${data.toString()}`);
-    });
 }
 
 async function stopRecording() {
-    if (ffmpegProcess) {
+    return new Promise(async (resolve) => {
         logger.info("Stopping FFMPEG process...");
 
-        return new Promise((resolve) => {
-            const forceKill = setTimeout(() => {
-                logger.warn("FFmpeg hang detected, forcing kill...");
-                ffmpegProcess.kill('SIGKILL');
-            }, 15000);
+        if (!ffmpegProcess) {
+            logger.warn("No active FFmpeg process to stop.");
+            return resolve({ videoChunks: [], transcriptPath: null });
+        }
 
-            ffmpegProcess.on('exit', async () => {
-                clearTimeout(forceKill);
-                logger.info("FFmpeg exited. Starting post-processing...");
+        // Kill FFmpeg aggressively to ensure it stops
+        const forceKill = setTimeout(() => {
+            logger.warn("FFmpeg hang detected, forcing SIGKILL...");
+            ffmpegProcess.kill('SIGKILL');
+        }, 5000);
 
-                try {
-                    // MKV -> MP4
-                    if (fs.existsSync(rawVideoPath)) {
-                        logger.info("Converting to MP4...");
-                        execSync(`ffmpeg -i "${rawVideoPath}" -c copy -movflags +faststart -y "${masterMp4Path}"`);
-                    }
+        ffmpegProcess.on('exit', async () => {
+            clearTimeout(forceKill);
+            logger.info("FFmpeg process terminated. Starting cleanup...");
 
-                    // 1. Chunking
-                    const videoChunks = await processChunks(masterMp4Path);
+            try {
+                // Wait 2s for file handles to release
+                await new Promise(r => setTimeout(r, 2000));
 
-                    // 2. Transcription
-                    logger.info("Starting AI Transcription...");
-                    const transcriptPath = await transcriber.transcribe(audioExtractPath);
-
-                    resolve({ videoChunks, transcriptPath });
-                } catch (err) {
-                    logger.error(`Post-processing Error: ${err.message}`);
-                    resolve({ videoChunks: [], transcriptPath: null });
+                if (!fs.existsSync(rawVideoPath)) {
+                    throw new Error("Master recording (MKV) not found.");
                 }
-            });
 
-            // Graceful stop
-            ffmpegProcess.stdin.write('q');
+                logger.info("Converting MKV to MP4...");
+                execSync(`ffmpeg -i "${rawVideoPath}" -c copy -movflags +faststart -y "${masterMp4Path}"`);
+
+                logger.info("Splitting video into chunks...");
+                const videoChunks = await processChunks(masterMp4Path);
+
+                logger.info("Starting Whisper AI Transcription...");
+                const transcriptPath = await transcriber.transcribe(audioExtractPath);
+
+                resolve({ videoChunks, transcriptPath });
+            } catch (err) {
+                logger.error(`Post-processing Failure: ${err.message}`);
+                resolve({ videoChunks: [], transcriptPath: null });
+            }
         });
-    }
-    return { videoChunks: [], transcriptPath: null };
+
+        // Try graceful quit first
+        try {
+            ffmpegProcess.stdin.write('q');
+        } catch (e) {
+            ffmpegProcess.kill('SIGTERM');
+        }
+    });
 }
 
 async function processChunks(filePath) {
-    if (!fs.existsSync(filePath)) {
-        logger.error("Master recording not found.");
-        return [];
-    }
+    if (!fs.existsSync(filePath)) return [];
 
     const stats = fs.statSync(filePath);
-    const MAX_SIZE = 45 * 1024 * 1024;
+    const MAX_SIZE = 40 * 1024 * 1024; // 40MB limit for safety
 
     if (stats.size <= MAX_SIZE) return [filePath];
 
     try {
         const durationStr = execSync(`ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`).toString().trim();
         const duration = parseFloat(durationStr);
-        const segmentTime = Math.floor((MAX_SIZE / stats.size) * duration * 0.95);
+        const chunkDuration = Math.floor((MAX_SIZE / stats.size) * duration * 0.9);
 
         const outputPattern = path.join(chunksDir, 'GHOST_meet_Part_%03d.mp4');
-        execSync(`ffmpeg -i "${filePath}" -f segment -segment_time ${segmentTime} -c copy -reset_timestamps 1 -movflags +faststart "${outputPattern}"`);
+        execSync(`ffmpeg -i "${filePath}" -f segment -segment_time ${chunkDuration} -c copy -reset_timestamps 1 -movflags +faststart "${outputPattern}"`);
 
         return fs.readdirSync(chunksDir)
             .filter(f => f.endsWith('.mp4'))
             .map(f => path.join(chunksDir, f))
             .sort();
-    } catch (error) {
-        logger.error(`Chunking Error: ${error.message}`);
+    } catch (e) {
+        logger.error(`Chunking error: ${e.message}`);
         return [filePath];
     }
 }

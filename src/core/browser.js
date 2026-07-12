@@ -108,10 +108,23 @@ async function takeScreenshot() {
 
 async function closeBrowser() {
     try {
-        if (browser) await browser.close();
-        if (tunnelInstance) tunnelInstance.kill();
-        exec('pkill Xvfb');
-    } catch (e) {}
+        logger.info("Initiating browser shutdown and meeting exit...");
+        if (browser) {
+            await browser.close();
+            logger.info("Browser closed successfully.");
+        }
+        if (tunnelInstance) {
+            tunnelInstance.kill('SIGKILL');
+            logger.info("Tunnel terminated.");
+        }
+        // Force kill any remaining chrome or display processes
+        exec('pkill -9 -f chrome');
+        exec('pkill -9 Xvfb');
+        exec('pkill -9 fluxbox');
+        logger.info("Display and window manager purged.");
+    } catch (e) {
+        logger.error("Error during browser cleanup:", e.message);
+    }
 }
 
 module.exports = { launchMeeting, takeScreenshot, closeBrowser, getPage: () => page };
