@@ -47,7 +47,16 @@ async function stopRecording() {
             return resolve({ videoChunks: [], transcriptPath: null });
         }
 
-        // Kill FFmpeg aggressively to ensure it stops
+        // 1. Force Browser to close first (Leaves meeting)
+        try {
+            logger.info("Triggering browser close to leave meeting...");
+            const browserManager = require('./browser'); // Lazy load
+            await browserManager.closeBrowser();
+        } catch (e) {
+            logger.warn("Manual browser close failed:", e.message);
+        }
+
+        // 2. Kill FFmpeg aggressively to ensure it stops
         const forceKill = setTimeout(() => {
             logger.warn("FFmpeg hang detected, forcing SIGKILL...");
             ffmpegProcess.kill('SIGKILL');

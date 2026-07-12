@@ -89,7 +89,8 @@ async function launchMeeting(url) {
         }
 
         const vncPass = process.env.VNC_PASSWORD || "";
-        const dashboardUrl = `${tunnelUrl}/vnc.html?autoconnect=true&password=${vncPass}&resize=scale&scale=1.0`;
+        // FIXED: Added mobile support parameters (touch_mode, view_only, reconnect)
+        const dashboardUrl = `${tunnelUrl}/vnc.html?autoconnect=true&password=${vncPass}&resize=scale&scale=1.0&touch_mode=1&view_only=false&reconnect=true`;
 
         return { url: dashboardUrl };
     } catch (error) {

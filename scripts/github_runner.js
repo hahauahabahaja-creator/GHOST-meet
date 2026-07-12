@@ -232,8 +232,14 @@ function registerCommands() {
             await ctx.telegram.editMessageText(chatId, playerMessageId, null, completedUI.text, { parse_mode: 'Markdown' });
 
             // 🚀 CRITICAL: Force meeting exit by killing browser processes
-            console.log("Forcing meeting exit...");
-            await browserManager.closeBrowser();
+            console.log("Forcing meeting exit (Manual Purge)...");
+            try {
+                await browserManager.closeBrowser();
+                // Final bash-level nuke
+                const { execSync } = require('child_process');
+                execSync('pkill -9 -f chrome || true');
+                execSync('pkill -9 Xvfb || true');
+            } catch (e) {}
 
             setTimeout(() => {
                 console.log("Runner complete. Exiting.");
