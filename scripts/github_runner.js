@@ -49,7 +49,7 @@ async function startHeartbeat(ctx) {
             if (e.description && e.description.includes("message is not modified")) return;
             console.error("Heartbeat update error:", e.message);
         }
-    }, 5000); // 5s update
+    }, 5000);
 }
 
 function stopHeartbeat() {
@@ -100,7 +100,6 @@ function registerCommands() {
 
             console.log("Runner: Triggering recorder.stopRecording()...");
 
-            // Set a timeout for the entire stop process (15 minutes)
             const stopTimeout = setTimeout(() => {
                 console.error("Runner: stopRecording timed out!");
                 ctx.reply("⚠️ *Timeout:* Asset processing took too long.").catch(() => {});
@@ -116,7 +115,6 @@ function registerCommands() {
                 return;
             }
 
-            // FINALIZING UI for upload phase
             const uploadingUI = ui.generatePlayerUI({ status: 'FINALIZING', progress: 95 });
             await ctx.telegram.editMessageText(chatId, playerMessageId, null, uploadingUI.text, { parse_mode: 'Markdown' });
 
@@ -159,27 +157,37 @@ function registerCommands() {
 
 async function run() {
     try {
-        console.log(`🚀 Starting GitHub Runner...`);
+        console.log(`🚀 Starting GitHub Runner Engine...`);
         registerCommands();
 
-        // 2. IMMEDIATE WEBHOOK LOCK: Force Render bot silence first
-        async function forceWebhookLock() {
+        // 🛡 THE MASTER LOCK: Kill Render Bot session by force-claiming the webhook/polling
+        async function claimSession() {
             try {
-                await bot.telegram.setWebhook(`https://google.com/lock-${Date.now()}`);
-                await new Promise(r => setTimeout(r, 2000));
+                console.log("Claiming session... (Silencing other instances)");
+                // Force delete any existing webhooks
                 await bot.telegram.deleteWebhook({ drop_pending_updates: true });
                 await new Promise(r => setTimeout(r, 2000));
             } catch (e) {
-                console.log(`Webhook Lock Error: ${e.message}`);
+                console.log(`Session Claim Warning: ${e.message}`);
             }
         }
-        await forceWebhookLock();
 
-        // 3. Start Polling
+        await claimSession();
+
+        // Start Polling with Conflict Handling
         const botPromise = bot.launch({
             dropPendingUpdates: true,
             polling: { timeout: 30, limit: 100 }
+        }).catch(err => {
+            if (err.response && err.response.error_code === 409) {
+                console.log("⚠️ Initial Conflict detected. Retrying session claim in 5s...");
+                setTimeout(run, 5000);
+            } else {
+                console.error("Critical Bot Launch Error:", err.message);
+            }
         });
+
+        console.log("Runner Engine Active. Initializing Browser...");
 
         const connectingUI = ui.generatePlayerUI({ status: 'CONNECTING', meetingUrl });
         await bot.telegram.editMessageText(chatId, playerMessageId, null, connectingUI.text, {
@@ -188,18 +196,29 @@ async function run() {
 
         const tunnel = await browserManager.launchMeeting(meetingUrl);
         currentDashboardUrl = tunnel.url;
-        isRecording = true; // Auto-record for Runner usually, or wait for start
+        isRecording = true;
 
         const readyUI = ui.generatePlayerUI({ status: 'READY', dashboardUrl: tunnel.url });
         await bot.telegram.editMessageText(chatId, playerMessageId, null, readyUI.text, {
             parse_mode: 'Markdown', ...readyUI.markup
         });
 
-        await botPromise;
+        console.log("Runner ready. Awaiting commands...");
+
     } catch (error) {
-        console.error("Runner Error:", error);
+        console.error("Runner Boot Error:", error);
+        // Don't exit immediately, try to notify if possible
         process.exit(1);
     }
 }
+
+// Global error handling to prevent crash-loop
+process.on('uncaughtException', (err) => {
+    if (err.message.includes('409')) {
+        console.log("🔄 Conflict Error handled: Bot session is being claimed by another instance.");
+    } else {
+        console.error('💥 Uncaught Exception:', err);
+    }
+});
 
 run();
