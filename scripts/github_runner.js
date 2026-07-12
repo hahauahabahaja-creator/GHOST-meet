@@ -207,22 +207,35 @@ function registerCommands() {
 
             isRecording = false;
 
-            // Phase 1: Stop FFMPEG
-            const finalizingUI = ui.generatePlayerUI({ status: 'FINALIZING', progress: 20 });
-            await ctx.telegram.editMessageText(chatId, playerMessageId, null, finalizingUI.text, { parse_mode: 'Markdown' });
+            // Phase 1: Stop FFMPEG & Post-Process
+            const processingUI = ui.generatePlayerUI({ status: 'FINALIZING', progress: 40 });
+            await ctx.telegram.editMessageText(chatId, playerMessageId, null, processingUI.text, { parse_mode: 'Markdown' });
 
             const assets = await recorder.stopRecording();
+
+            // LOG FOR DEBUGGING
+            console.log(`Assets Generated: Video Chunks: ${assets.videoChunks.length}, Transcript: ${!!assets.transcriptPath}`);
+
+            // Check if assets were actually generated
+            if (!assets || (assets.videoChunks.length === 0 && !assets.transcriptPath)) {
+                console.error("Critical Failure: No assets returned from recorder.");
+                throw new Error("Recording finalized but no assets were generated.");
+            }
 
             // Phase 2: Uploading
             const uploadingUI = ui.generatePlayerUI({ status: 'FINALIZING', progress: 80 });
             await ctx.telegram.editMessageText(chatId, playerMessageId, null, uploadingUI.text, { parse_mode: 'Markdown' });
 
-            for (let i = 0; i < assets.videoChunks.length; i++) {
-                await ctx.replyWithVideo({ source: assets.videoChunks[i] }, { caption: `📽 Part ${i+1}` });
+            // Send Video Segments
+            for (const chunk of assets.videoChunks) {
+                console.log(`Uploading Video Chunk: ${chunk}`);
+                await ctx.replyWithVideo({ source: chunk }, { caption: `📽 GHOST meet | Part ${assets.videoChunks.indexOf(chunk) + 1}` });
             }
 
+            // Send Transcript
             if (assets.transcriptPath) {
-                await ctx.replyWithDocument({ source: assets.transcriptPath }, { caption: "📄 *AI Meeting Transcript*", parse_mode: 'Markdown' });
+                console.log(`Uploading Transcript: ${assets.transcriptPath}`);
+                await ctx.replyWithDocument({ source: assets.transcriptPath }, { caption: "📄 *AI Meeting Transcript*" });
             }
 
             const completedUI = ui.generatePlayerUI({ status: 'COMPLETED', progress: 100, partCount: assets.videoChunks.length });
