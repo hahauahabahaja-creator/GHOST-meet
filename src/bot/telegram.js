@@ -35,7 +35,10 @@ bot.on('text', async (ctx, next) => {
     const meetingPattern = /(meet\.google\.com\/[a-z0-9-]+)|(zoom\.us\/j\/[0-9]+)|(webex\.com\/[a-z0-9-]+)|(teams\.microsoft\.com\/[a-z0-9-]+)/i;
 
     if (meetingPattern.test(text) && !text.startsWith('/')) {
-        const meetingUrl = text.match(/https?:\/\/[^\s]+/)?.[0] || text;
+        let meetingUrl = text.match(/https?:\/\/[^\s]+/)?.[0] || text;
+        if (!meetingUrl.startsWith('http')) {
+            meetingUrl = `https://${meetingUrl}`;
+        }
         return handleJoin(ctx, meetingUrl);
     }
 

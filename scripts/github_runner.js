@@ -5,7 +5,10 @@ const logger = require('../src/utils/logger');
 const ui = require('../src/utils/ui');
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
-const meetingUrl = process.env.MEETING_URL;
+let meetingUrl = process.env.MEETING_URL;
+if (meetingUrl && !meetingUrl.startsWith('http')) {
+    meetingUrl = `https://${meetingUrl}`;
+}
 const groupId = process.env.ALLOWED_GROUP_ID;
 
 // Handoff data
