@@ -184,6 +184,7 @@ function registerCommands() {
         } catch (err) {
             console.error("Runner Callback Stop Error:", err.message);
             await ctx.reply(`❌ *System Error during Finalization:* ${err.message}`).catch(() => {});
+            process.exit(1);
         }
     });
 }

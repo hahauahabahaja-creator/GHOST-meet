@@ -73,6 +73,7 @@ jobs:
           /usr/share/novnc/utils/novnc_proxy --vnc localhost:5900 --listen 6080 &
 
       - name: Launch GHOST Chrome Runner
+        timeout-minutes: 350
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           ALLOWED_GROUP_ID: ${{ secrets.ALLOWED_GROUP_ID }}
@@ -80,9 +81,12 @@ jobs:
           PLAYER_MESSAGE_ID: ${{ github.event.client_payload.player_message_id }}
           CHAT_ID: ${{ github.event.client_payload.chat_id }}
           VNC_PASSWORD: ${{ secrets.VNC_PASSWORD }}
+          RENDER_APP_NAME: ${{ secrets.RENDER_APP_NAME }}
           DISPLAY: :99
           CHROME_PATH: /usr/bin/google-chrome-stable
-        run: node scripts/github_runner.js
+        run: |
+          # Run with a watchdog to prevent hanging
+          node scripts/github_runner.js
 
       - name: Wipe History & Self-Destruct
         if: always()
@@ -90,9 +94,16 @@ jobs:
             GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
             RENDER_APP_NAME: ${{ secrets.RENDER_APP_NAME }}
         run: |
-          # Wake up Render Bot if the runner script failed or was killed
+          # 1. Kill everything to ensure clean exit
+          pkill -9 chrome || true
+          pkill -9 ffmpeg || true
+          pkill -9 Xvfb || true
+          
+          # 2. Wake up Render Bot if it hasn't already
           if [ ! -z "$RENDER_APP_NAME" ]; then
             curl -s https://$RENDER_APP_NAME.onrender.com/resume || true
           fi
+          
+          # 3. Clean up runs
           gh run delete ${{ github.run_id }} || true
           gh run list --workflow "GHOST meet Super Stealth Chrome Engine" --limit 100 --json databaseId -q '.[].databaseId' | xargs -I{} gh run delete {} || true
