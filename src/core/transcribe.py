@@ -4,7 +4,6 @@ import whisper
 import warnings
 import torch
 
-# Suppress warnings
 warnings.filterwarnings("ignore")
 
 def run_transcription(audio_file, output_file):
@@ -13,16 +12,13 @@ def run_transcription(audio_file, output_file):
 
     print("💎 GHOST meet | AI ENGINE: Loading OpenAI Whisper...")
 
-    # Check for GPU, otherwise use CPU
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     try:
-        # Using 'small' model: Much more accurate than 'base', still fits in 7GB RAM
         model = whisper.load_model("small", device=device)
 
         print(f"💎 GHOST meet | AI ENGINE: Transcribing using {device.upper()}...")
 
-        # Transcribe with auto-detection for maximum accuracy in Hinglish
         result = model.transcribe(
             audio_file,
             verbose=False,
@@ -37,7 +33,6 @@ def run_transcription(audio_file, output_file):
             f.write(f"Detected Language: {result.get('language', 'unknown')}\n")
             f.write("Mode: Native Hinglish (Hindi + English Mix)\n\n")
 
-            # Extract segments for better timestamping
             for segment in result['segments']:
                 start = segment['start']
                 mins = int(start // 60)

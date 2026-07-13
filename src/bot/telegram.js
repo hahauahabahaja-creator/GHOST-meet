@@ -7,13 +7,11 @@ const github = require('../utils/github');
 const logger = require('../utils/logger');
 const ui = require('../utils/ui');
 
-// Load environment variables
 dotenv.config();
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 const ALLOWED_GROUP_ID = process.env.ALLOWED_GROUP_ID;
 
-// Global session state
 const sessionState = {
     isJoined: false,
     isRecording: false,
@@ -22,16 +20,12 @@ const sessionState = {
     playerMessageId: null,
     recordingStartTime: null,
     timerInterval: null,
-    isProcessing: false // NEW: Prevent overlapping triggers
+    isProcessing: false
 };
 
-/**
- * SMART LINK LISTENER - Replaces manual /join
- */
 bot.on('text', async (ctx, next) => {
     const text = ctx.message.text;
 
-    // Check for meeting links (Meet, Zoom, Webex, Teams, etc.)
     const meetingPattern = /(meet\.google\.com\/[a-z0-9-]+)|(zoom\.us\/j\/[0-9]+)|(webex\.com\/[a-z0-9-]+)|(teams\.microsoft\.com\/[a-z0-9-]+)/i;
 
     if (meetingPattern.test(text) && !text.startsWith('/')) {
@@ -54,7 +48,6 @@ async function handleJoin(ctx, meetingUrl) {
     sessionState.currentChatId = ctx.chat.id;
     sessionState.isJoined = true;
 
-    // Send INITIALIZING UI
     const player = ui.generatePlayerUI({ status: 'INITIALIZING', meetingUrl });
     const msg = await ctx.replyWithMarkdown(player.text, player.markup);
     sessionState.playerMessageId = msg.message_id;
@@ -67,7 +60,6 @@ async function handleJoin(ctx, meetingUrl) {
                 parse_mode: 'Markdown', ...dispatchedUI.markup
             });
 
-            // STOP polling to let the Runner take over
             setTimeout(() => {
                 console.log("Initiating Handoff: Stopping local bot polling...");
                 stopBot();
@@ -79,7 +71,6 @@ async function handleJoin(ctx, meetingUrl) {
         }
         return;
     }
-    // Local logic remains same...
 }
 
 bot.command('join', async (ctx) => {
@@ -88,9 +79,6 @@ bot.command('join', async (ctx) => {
     return handleJoin(ctx, parts[1]);
 });
 
-/**
- * /record - Start HD FFMPEG Stream with REAL-TIME TIMER
- */
 bot.command('record', async (ctx) => {
     if (!sessionState.isJoined) {
         return ctx.replyWithMarkdown("❌ *Error:* Not joined yet. Use `/join <url>` first.");
@@ -106,7 +94,6 @@ bot.command('record', async (ctx) => {
     try {
         await recorder.startRecording();
         
-        // START REAL-TIME TIMER UPDATES
         let elapsedSeconds = 0;
         sessionState.timerInterval = setInterval(async () => {
             elapsedSeconds++;
@@ -133,7 +120,7 @@ bot.command('record', async (ctx) => {
             } catch (err) {
                 logger.warn("Timer update error (expected):", err.message);
             }
-        }, 5000); // Update every 5 seconds to avoid rate limits
+        }, 5000);
 
     } catch (error) {
         logger.error("Recording Start Failure:", error);
@@ -143,15 +130,11 @@ bot.command('record', async (ctx) => {
     }
 });
 
-/**
- * /stop - Stop, Chunk, and Upload with REAL-TIME STATUS
- */
 bot.command('stop', async (ctx) => {
     if (!sessionState.isRecording) {
         return ctx.replyWithMarkdown("⚠️ *Not Recording*\n━━━━━━━━━━━━━━━━━━━━━━\nStart recording with `/record` first.");
     }
 
-    // STOP TIMER
     if (sessionState.timerInterval) {
         clearInterval(sessionState.timerInterval);
         sessionState.timerInterval = null;
@@ -176,8 +159,7 @@ bot.command('stop', async (ctx) => {
     }
 
     try {
-        // Get recording duration
-        const duration = sessionState.recordingStartTime ? 
+        const duration = sessionState.recordingStartTime ?
             Math.round((Date.now() - sessionState.recordingStartTime) / 1000) : 0;
         const minutes = Math.floor(duration / 60);
         const seconds = duration % 60;
@@ -197,7 +179,6 @@ bot.command('stop', async (ctx) => {
             });
         }
 
-        // Upload Video Segments with progress
         for (let i = 0; i < assets.videoChunks.length; i++) {
             await ctx.replyWithVideo(
                 { source: assets.videoChunks[i] },
@@ -207,7 +188,6 @@ bot.command('stop', async (ctx) => {
             );
         }
 
-        // Upload Audio Recording
         if (assets.audioPath) {
             await ctx.replyWithAudio(
                 { source: assets.audioPath },
@@ -215,7 +195,6 @@ bot.command('stop', async (ctx) => {
             );
         }
 
-        // Upload AI Transcript
         if (assets.transcriptPath) {
             await ctx.replyWithDocument(
                 { source: assets.transcriptPath },
@@ -223,7 +202,6 @@ bot.command('stop', async (ctx) => {
             );
         }
 
-        // RESET SESSION STATE
         sessionState.isJoined = false;
         sessionState.isRecording = false;
         sessionState.currentUrl = null;
@@ -246,9 +224,6 @@ bot.command('stop', async (ctx) => {
     }
 });
 
-/**
- * /status - Real-time diagnostics and session status
- */
 bot.command('status', (ctx) => {
     const recordingStatus = sessionState.isRecording ? "🔴 ACTIVE" : "⚪ IDLE";
     const joinStatus = sessionState.isJoined ? "✅ CONNECTED" : "❌ DISCONNECTED";
@@ -274,7 +249,6 @@ bot.command('status', (ctx) => {
     ctx.replyWithMarkdown(diagnosticUI);
 });
 
-// Inline Actions
 bot.action('cmd_record', async (ctx) => {
     try {
         await ctx.answerCbQuery("🔴 Initiating HD Capture...");
@@ -286,7 +260,6 @@ bot.action('cmd_record', async (ctx) => {
 
         await recorder.startRecording();
 
-        // START REAL-TIME TIMER UPDATES
         let elapsedSeconds = 0;
         sessionState.timerInterval = setInterval(async () => {
             elapsedSeconds++;
@@ -323,7 +296,6 @@ bot.action('cmd_stop', async (ctx) => {
     try {
         await ctx.answerCbQuery("💾 Finalizing Session...");
 
-        // 1. UPDATE UI INSTANTLY (Both Render and Runner see this)
         const stoppingUI = ui.generatePlayerUI({
             status: 'STOPPING',
             meetingUrl: sessionState.currentUrl
@@ -335,13 +307,11 @@ bot.action('cmd_stop', async (ctx) => {
             });
         }
 
-        // 2. STOP TIMER (Both)
         if (sessionState.timerInterval) {
             clearInterval(sessionState.timerInterval);
             sessionState.timerInterval = null;
         }
 
-        // 3. RENDER BOT LOGIC: Just Stop Here.
         if (process.env.RENDER) {
             logger.info("Main bot on Render: UI updated. Runner should handle the recording stop.");
             sessionState.isRecording = false;
@@ -349,7 +319,6 @@ bot.action('cmd_stop', async (ctx) => {
             return;
         }
 
-        // 4. RUNNER/LOCAL LOGIC: Actually stop the recording
         logger.info("Local/Runner Engine: Stopping recording and processing assets...");
         sessionState.isRecording = false;
 
@@ -360,11 +329,9 @@ bot.action('cmd_stop', async (ctx) => {
             return;
         }
 
-        // Processing UI
         const processingUI = ui.generatePlayerUI({ status: 'FINALIZING', meetingUrl: sessionState.currentUrl });
         await ctx.telegram.editMessageText(ctx.chat.id, sessionState.playerMessageId, null, processingUI.text, { parse_mode: 'Markdown' });
 
-        // UPLOAD
         for (let i = 0; i < assets.videoChunks.length; i++) {
             await ctx.replyWithVideo({ source: assets.videoChunks[i] }, {
                 caption: `📽 Part ${i + 1} | Duration: Captured`
@@ -415,7 +382,6 @@ bot.action('help_guide', (ctx) => {
     ctx.reply("GHOST meet Manual:\n1. Send the meeting link directly to this chat.\n2. Use the interactive PLAYER buttons to Start, Stop, or Take Screenshots.\n3. Recordings and transcripts are delivered automatically.");
 });
 
-// Launch sequence
 const app = express();
 const PORT = process.env.PORT || 10000;
 
@@ -425,7 +391,7 @@ app.listen(PORT, '0.0.0.0', () => {
 });
 
 let isPolling = false;
-let shouldPoll = true; // NEW: Global control to prevent "Bot War"
+let shouldPoll = true;
 
 async function launchBot() {
     if (isPolling || !shouldPoll) return;
@@ -444,7 +410,7 @@ async function launchBot() {
 }
 
 function stopBot() {
-    shouldPoll = false; // Lock polling
+    shouldPoll = false;
     bot.stop();
     isPolling = false;
     console.log("💤 Bot is now in STRICT SLEEP mode (Handed over to Runner).");
@@ -452,7 +418,7 @@ function stopBot() {
 
 app.get('/resume', (req, res) => {
     console.log("🔔 Wake up signal received from Runner.");
-    shouldPoll = true; // Unlock polling
+    shouldPoll = true;
     launchBot();
     res.send('Bot Resumed');
 });

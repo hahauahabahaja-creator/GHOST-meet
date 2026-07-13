@@ -1,10 +1,5 @@
 const { Markup } = require('telegraf');
 
-/**
- * GHOST meet | Pro UI Engine
- * Generates consistent, high-end "Video Player" style interfaces
- */
-
 const STATUS_ICONS = {
     INITIALIZING: '⏳',
     DEPLOYING: '🚀',
@@ -26,7 +21,6 @@ function generatePlayerUI(params) {
     uiText += `━━━━━━━━━━━━━━━━━━━━━━\n`;
     uiText += `📍 Status: *${status}*\n`;
 
-    // Switch from Meeting Link to Dashboard Link when ready
     if (dashboardUrl) {
         uiText += `🔗 Control: [ACCESS DASHBOARD](${dashboardUrl})\n`;
     } else if (meetingUrl) {
@@ -63,7 +57,6 @@ function generatePlayerUI(params) {
         uiText += `⚙️ Processing & Uploading...`;
     }
 
-    // Inline Buttons (NO DIAGNOSTICS - ONLY ACTIONS)
     const buttons = [];
     if (status === 'READY') {
         buttons.push([Markup.button.callback('⏺ START CAPTURE', 'cmd_record')]);
@@ -73,7 +66,6 @@ function generatePlayerUI(params) {
             Markup.button.callback('🛑 STOP & SAVE', 'cmd_stop')
         ]);
     } else if (status === 'STARTING' || status === 'STOPPING') {
-        // Show disabled/loading button
         buttons.push([Markup.button.callback('⏳ PROCESSING...', 'none')]);
     }
 

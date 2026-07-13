@@ -15,7 +15,6 @@ async function launchMeeting(url) {
     try {
         logger.info("Initializing Super Stealth Chrome Engine...");
 
-        // 1. Setup Serveo Tunnel
         tunnelInstance = spawn('ssh', ['-o', 'StrictHostKeyChecking=no', '-R', '80:localhost:6080', 'serveo.net']);
 
         const tunnelUrl = await new Promise((resolve) => {
@@ -31,16 +30,15 @@ async function launchMeeting(url) {
             tunnelInstance.stderr.on('data', handleOutput);
         });
 
-        // 🛡 ULTIMATE STEALTH: Use full desktop chrome for extension support
         const userDataDir = '/tmp/ghost_chrome_profile';
         await fs.ensureDir(userDataDir);
 
         browser = await puppeteer.launch({
             executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome-stable',
             headless: false,
-            userDataDir: userDataDir, // PERSISTENT PROFILE FOR EXTENSIONS
+            userDataDir: userDataDir,
             defaultViewport: null,
-            ignoreDefaultArgs: ['--disable-extensions'], // CRITICAL FOR EXTENSIONS
+            ignoreDefaultArgs: ['--disable-extensions'],
             args: [
                 '--start-maximized',
                 '--no-sandbox',
@@ -60,7 +58,6 @@ async function launchMeeting(url) {
         const pages = await browser.pages();
         page = pages[0];
 
-        // 🚀 ZIDDI AUTO-RETRY LOOP (To bypass "You can't join this call")
         let attempts = 0;
         const maxAttempts = 5;
         let joined = false;
@@ -72,7 +69,6 @@ async function launchMeeting(url) {
             try {
                 await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
 
-                // Wait to see if we hit the error page or meeting screen
                 await new Promise(r => setTimeout(r, 8000));
 
                 const content = await page.content();
@@ -89,7 +85,6 @@ async function launchMeeting(url) {
         }
 
         const vncPass = process.env.VNC_PASSWORD || "";
-        // FIXED: Added mobile support parameters (touch_mode, view_only, reconnect)
         const dashboardUrl = `${tunnelUrl}/vnc.html?autoconnect=true&password=${vncPass}&resize=scale&scale=1.0&touch_mode=1&view_only=false&reconnect=true`;
 
         return { url: dashboardUrl };
@@ -118,7 +113,6 @@ async function closeBrowser() {
             tunnelInstance.kill('SIGKILL');
             logger.info("Tunnel terminated.");
         }
-        // Force kill any remaining chrome or display processes
         exec('pkill -9 -f chrome');
         exec('pkill -9 Xvfb');
         exec('pkill -9 fluxbox');

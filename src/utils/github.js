@@ -1,9 +1,6 @@
 const axios = require('axios');
 const logger = require('./logger');
 
-/**
- * Triggers the GitHub Actions workflow via Repository Dispatch
- */
 async function triggerRunner(meetingUrl, playerMessageId, chatId) {
     const { PAT_TOKEN, GITHUB_OWNER, GITHUB_REPO } = process.env;
 

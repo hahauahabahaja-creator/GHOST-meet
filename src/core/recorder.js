@@ -13,13 +13,11 @@ const masterMp4Path = path.join(outputDir, 'meeting_master.mp4');
 const audioExtractPath = path.join(outputDir, 'meeting_audio.wav');
 const chunksDir = path.join(outputDir, 'chunks');
 
-// NEW: Progress tracking for UI
 let currentProgressCallback = null;
 function setProgressCallback(cb) { currentProgressCallback = cb; }
 
 async function updateStatus(status, progress) {
     if (currentProgressCallback) {
-        // Run callback without blocking the main recorder flow indefinitely
         currentProgressCallback(status, progress).catch(err => {
             logger.warn(`Progress UI Update Failed: ${err.message}`);
         });
@@ -33,7 +31,6 @@ async function startRecording() {
 
     logger.info("Initializing HD Stream Capture on :99...");
 
-    // Unified FFmpeg process for video and audio
     ffmpegProcess = spawn('ffmpeg', [
         '-f', 'x11grab',
         '-video_size', '1920x1080',
@@ -43,13 +40,12 @@ async function startRecording() {
         '-i', 'v_sink.monitor',
         '-c:v', 'libx264',
         '-preset', 'ultrafast',
-        '-crf', '28', // Slightly lower quality for faster processing/smaller size
+        '-crf', '28',
         '-pix_fmt', 'yuv420p',
         '-c:a', 'aac',
         '-b:a', '128k',
         '-ac', '2',
         '-y', rawVideoPath,
-        // Separate audio-only stream for transcription (Resilient to silence)
         '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', '-y', audioExtractPath
     ]);
 
@@ -63,23 +59,18 @@ async function stopRecording() {
     logger.info("Initiating ULTRA-ROBUST stopRecording sequence...");
 
     try {
-        // 1. UPDATE UI: STEP 1
         await updateStatus('STOPPING', 10);
         logger.info("Step 1: Sending SIGINT to FFmpeg via pkill...");
 
-        // Use shell-level pkill for maximum reliability
         exec('pkill -SIGINT ffmpeg');
 
-        // Background browser kill - don't let it block us
         const browserManager = require('./browser');
         browserManager.closeBrowser().catch(e => logger.error(`Background cleanup error: ${e.message}`));
 
-        // 2. FIXED SLEEP (Wait for FFmpeg to flush MKV)
         await new Promise(r => setTimeout(r, 6000));
         logger.info("Step 2: Grace period over. Ensuring FFmpeg is dead...");
         exec('pkill -9 ffmpeg');
 
-        // 3. SECURE ASSETS
         await updateStatus('FINALIZING', 30);
 
         if (!fs.existsSync(rawVideoPath) || fs.statSync(rawVideoPath).size < 1000) {
@@ -87,20 +78,17 @@ async function stopRecording() {
             return { videoChunks: [], audioPath: null, transcriptPath: null };
         }
 
-        // 4. CONVERSION (With Fallback)
         await updateStatus('FINALIZING', 50);
         logger.info("Step 3: Converting/Optimizing Video...");
 
         let processedVideoPath = masterMp4Path;
         try {
-            // Attempt fast conversion
             await execPromise(`ffmpeg -i "${rawVideoPath}" -c copy -movflags +faststart -y "${masterMp4Path}"`);
         } catch (e) {
             logger.warn(`Conversion failed: ${e.message}. Falling back to RAW MKV.`);
-            processedVideoPath = rawVideoPath; // Use the raw file if conversion fails
+            processedVideoPath = rawVideoPath;
         }
 
-        // 5. CHUNKING
         await updateStatus('FINALIZING', 70);
         let videoChunks = [];
         if (processedVideoPath === masterMp4Path) {
@@ -111,7 +99,6 @@ async function stopRecording() {
 
         videoChunks = videoChunks.filter(f => fs.existsSync(f) && fs.statSync(f).size > 0);
 
-        // 6. TRANSCRIPTION (Non-blocking)
         let transcriptPath = null;
         if (fs.existsSync(audioExtractPath) && fs.statSync(audioExtractPath).size > 5000) {
             try {
@@ -146,7 +133,7 @@ async function processChunks(filePath) {
     if (!fs.existsSync(filePath)) return [];
 
     const stats = fs.statSync(filePath);
-    const MAX_SIZE = 45 * 1024 * 1024; // 45MB limit
+    const MAX_SIZE = 45 * 1024 * 1024;
 
     if (stats.size <= MAX_SIZE) return [filePath];
 

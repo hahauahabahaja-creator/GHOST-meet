@@ -1,8 +1,8 @@
 const { Telegraf } = require('telegraf');
 const browserManager = require('../src/core/browser');
 const recorder = require('../src/core/recorder');
-const logger = require('../src/utils/logger');
-const ui = require('../src/utils/ui');
+const logger = require('../utils/logger');
+const ui = require('../utils/ui');
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 let meetingUrl = process.env.MEETING_URL;
@@ -11,7 +11,6 @@ if (meetingUrl && !meetingUrl.startsWith('http')) {
 }
 const groupId = process.env.ALLOWED_GROUP_ID;
 
-// Handoff data
 const playerMessageId = process.env.PLAYER_MESSAGE_ID;
 const chatId = process.env.CHAT_ID || groupId;
 
@@ -20,9 +19,6 @@ let heartbeatInterval = null;
 let recordingStartTime = null;
 let currentDashboardUrl = null;
 
-/**
- * Animated Heartbeat for Telegram
- */
 async function startHeartbeat(ctx) {
     recordingStartTime = Date.now();
     heartbeatInterval = setInterval(async () => {
@@ -49,7 +45,7 @@ async function startHeartbeat(ctx) {
             if (e.description && e.description.includes("message is not modified")) return;
             console.error("Heartbeat update error:", e.message);
         }
-    }, 3000); // Updated to 3 seconds for more real-time feel
+    }, 3000);
 }
 
 function stopHeartbeat() {
@@ -59,12 +55,8 @@ function stopHeartbeat() {
     }
 }
 
-// Use built-in chrome on GitHub
 process.env.CHROME_PATH = '/usr/bin/google-chrome-stable';
 
-/**
- * Register all bot commands
- */
 function registerCommands() {
     bot.action('cmd_screenshot', async (ctx) => {
         try {
@@ -106,7 +98,6 @@ function registerCommands() {
             isRecording = false;
             stopHeartbeat();
 
-            // Link recorder progress to Telegram UI
             recorder.setProgressCallback(async (status, progress) => {
                 const updatedUI = ui.generatePlayerUI({ status, progress });
                 await ctx.telegram.editMessageText(chatId, Number(playerMessageId), null, updatedUI.text, {
@@ -120,7 +111,7 @@ function registerCommands() {
                 console.error("Runner: stopRecording GLOBAL TIMEOUT!");
                 ctx.reply("⚠️ *CRITICAL TIMEOUT:* Assets took too long to process. Attempting emergency exit.").catch(() => {});
                 process.exit(1);
-            }, 10 * 60 * 1000); // 10 Minute Hard Limit
+            }, 10 * 60 * 1000);
 
             const assets = await recorder.stopRecording();
             clearTimeout(stopTimeout);
@@ -161,7 +152,6 @@ function registerCommands() {
             console.log("Runner: Sequence Complete. Cleaning up...");
             await browserManager.closeBrowser().catch(() => {});
 
-            // Wake up the main bot on Render
             if (process.env.RENDER_APP_NAME) {
                 const axios = require('axios');
                 console.log(`Runner: Notifying Render Bot (${process.env.RENDER_APP_NAME}) to resume...`);
@@ -187,11 +177,9 @@ async function run() {
         console.log(`🚀 Starting GitHub Runner Engine...`);
         registerCommands();
 
-        // 🛡 THE MASTER LOCK: Kill Render Bot session by force-claiming the webhook/polling
         async function claimSession() {
             try {
                 console.log("Claiming session... (Silencing other instances)");
-                // Force delete any existing webhooks
                 await bot.telegram.deleteWebhook({ drop_pending_updates: true });
                 await new Promise(r => setTimeout(r, 2000));
             } catch (e) {
@@ -201,7 +189,6 @@ async function run() {
 
         await claimSession();
 
-        // Start Polling with Conflict Handling
         const botPromise = bot.launch({
             dropPendingUpdates: true,
             polling: { timeout: 30, limit: 100 }
@@ -238,12 +225,10 @@ async function run() {
 
     } catch (error) {
         console.error("Runner Boot Error:", error);
-        // Don't exit immediately, try to notify if possible
         process.exit(1);
     }
 }
 
-// Global error handling to prevent crash-loop
 process.on('uncaughtException', (err) => {
     if (err.message.includes('409')) {
         console.log("🔄 Conflict Error handled: Bot session is being claimed by another instance.");
