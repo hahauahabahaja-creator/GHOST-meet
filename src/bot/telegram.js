@@ -117,13 +117,34 @@ function registerHandlers() {
         const introText =
             "🛰 *GHOST meet | Stealth Engine v2.0*\n" +
             "━━━━━━━━━━━━━━━━━━━━━━\n" +
-            "Hello! I am your AI Meeting Assistant. I can join meetings, record them in high quality, and generate AI transcripts.\n\n" +
-            "📜 *Available Commands:*\n" +
-            "• `/start <link>` - Wake up bot and join a meeting.\n" +
-            "• `/status` - Check engine health and duration.\n" +
-            "• `/reset` - Perform a system hard reset.\n\n" +
-            "💡 *Tip:* You can also start by simply sending a meeting link.";
+            "Welcome, Operator. I am your high-performance AI Meeting Assistant, specialized in stealth capture, high-fidelity recording, and multi-language transcription.\n\n" +
+            "🛡 *Core Capabilities:*\n" +
+            "• *Stealth Entry:* Joins meetings without being detected.\n" +
+            "• *HD Capture:* Records 720p/1080p video with internal audio.\n" +
+            "• *AI Transcription:* Generates precise Hinglish transcripts.\n" +
+            "• *Auto-Handoff:* Scalable cloud architecture for 24/7 uptime.\n\n" +
+            "📜 *System Commands:*\n" +
+            "• /start - Initialize the engine.\n" +
+            "• /status - Check system health & diagnostics.\n" +
+            "• /help - View detailed usage guide.\n" +
+            "• /reset - Force a hard system reboot.\n\n" +
+            "💡 *Tip:* Simply send a Google Meet or Zoom link to begin.";
         return ctx.replyWithMarkdown(introText);
+    });
+
+    bot.command('help', (ctx) => {
+        const helpText =
+            "📖 *GHOST meet | Operation Manual*\n" +
+            "━━━━━━━━━━━━━━━━━━━━━━\n" +
+            "1️⃣ *Initiation:* Send a valid meeting link (Google Meet, Zoom, Teams).\n" +
+            "2️⃣ *Deployment:* I will deploy a stealth runner to join the meeting.\n" +
+            "3️⃣ *Control:* Use the Live Dashboard link provided to control the browser.\n" +
+            "4️⃣ *Finalization:* Use the 🛑 STOP button in the player to save the recording.\n\n" +
+            "🛠 *Maintenance Commands:*\n" +
+            "• /status - Check if the engine is busy or idle.\n" +
+            "• /reset - Emergency Hard Reset. Use this if the bot is stuck or not responding.\n\n" +
+            "⚠️ *Note:* Only one session can be active at a time.";
+        return ctx.replyWithMarkdown(helpText);
     });
 
     bot.command('reset', async (ctx) => {
