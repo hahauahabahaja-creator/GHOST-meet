@@ -97,7 +97,7 @@ app.get('/resume', async (req, res) => {
     // Give the runner time to die before starting
     setTimeout(async () => {
         console.log("🛠 [SYSTEM] Attempting to resume polling...");
-        await startEngine(true); // Drop updates that might have been handled by runner
+        await startEngine(false); // Drop updates that might have been handled by runner
     }, 5000);
 
     res.send('Engine Resume Initiated');
@@ -200,16 +200,24 @@ function registerHandlers() {
 }
 
 async function handleJoin(ctx, meetingUrl) {
-    if (sessionState.isProcessing || sessionState.handoffActive) return;
+    if (sessionState.isProcessing || sessionState.handoffActive) {
+        console.log("⚠️ [JOIN] Blocked: Process already running or handoff active.");
+        return;
+    }
 
-    console.log(`🚀 [JOIN] Checking workflow for: ${meetingUrl}`);
+    // Double check with GitHub before triggering
     const isRunning = await github.isWorkflowRunning();
-    if (isRunning) return ctx.replyWithMarkdown("⚠️ *Busy:* Another session is active. Please wait.");
+    if (isRunning) {
+        return ctx.replyWithMarkdown("⚠️ *Busy:* Another session is active. Please wait.");
+    }
 
     sessionState.isProcessing = true;
+    sessionState.handoffActive = true; // Lock immediately to prevent double trigger
     sessionState.currentUrl = meetingUrl;
     sessionState.currentChatId = ctx.chat.id;
     sessionState.isJoined = true;
+
+    console.log(`🚀 [JOIN] Triggering workflow for: ${meetingUrl}`);
 
     const player = ui.generatePlayerUI({ status: 'INITIALIZING', meetingUrl });
     const msg = await ctx.replyWithMarkdown(player.text, player.markup);
@@ -246,7 +254,7 @@ async function handleJoin(ctx, meetingUrl) {
 }
 
 registerHandlers();
-startEngine(true);
+startEngine(false);
 
 setInterval(() => {
     if (!isPolling && !sessionState.handoffActive) {
