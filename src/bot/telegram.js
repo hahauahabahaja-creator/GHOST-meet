@@ -21,7 +21,8 @@ let sessionState = {
     playerMessageId: null,
     recordingStartTime: null,
     timerInterval: null,
-    isProcessing: false
+    isProcessing: false,
+    handoffActive: false
 };
 
 function resetSessionState() {
@@ -29,6 +30,7 @@ function resetSessionState() {
     sessionState.isJoined = false;
     sessionState.isRecording = false;
     sessionState.isProcessing = false;
+    sessionState.handoffActive = false;
     sessionState.currentUrl = null;
     sessionState.playerMessageId = null;
     sessionState.recordingStartTime = null;
@@ -41,27 +43,42 @@ function resetSessionState() {
 let isPolling = false;
 
 async function startEngine(dropUpdates = false) {
+    if (sessionState.handoffActive) {
+        console.log("🚫 [ENGINE] Polling blocked: Handoff is active.");
+        return;
+    }
+
     try {
         if (isPolling) {
-            console.log("🔄 [ENGINE] Restarting Polling Instance...");
+            console.log("🔄 [ENGINE] Stopping previous instance...");
             await bot.stop();
+            isPolling = false;
         }
 
         await bot.launch({ dropPendingUpdates: dropUpdates });
         isPolling = true;
-        console.log("✅ [ENGINE] GHOST meet is now ACTIVE 24/7.");
+        console.log("✅ [ENGINE] GHOST meet is ACTIVE.");
     } catch (err) {
         console.error("❌ [ERROR] Engine Crash:", err.message);
         isPolling = false;
-        setTimeout(() => startEngine(false), 5000);
+        if (!sessionState.handoffActive) {
+            setTimeout(() => startEngine(false), 10000);
+        }
     }
+}
+
+async function stopEngine() {
+    console.log("💤 [ENGINE] Stopping polling for handoff...");
+    isPolling = false;
+    await bot.stop();
 }
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
 app.get('/resume', async (req, res) => {
-    console.log("🔔 [SIGNAL] Forced Wakeup received.");
+    console.log("🔔 [SIGNAL] Resume signal received.");
+    sessionState.handoffActive = false;
     resetSessionState();
     await startEngine(false);
     res.send('Engine Resumed');
@@ -72,6 +89,7 @@ app.listen(PORT, '0.0.0.0', () => console.log(`📡 [SERVER] Monitoring port ${P
 
 function registerHandlers() {
     bot.command('start', async (ctx) => {
+        if (sessionState.handoffActive) return;
         resetSessionState();
         const parts = ctx.message.text.split(' ');
         if (parts.length > 1) return handleJoin(ctx, parts[1]);
@@ -80,16 +98,17 @@ function registerHandlers() {
         const introText =
             "🛰 *GHOST meet | Stealth Engine v2.0*\n" +
             "━━━━━━━━━━━━━━━━━━━━━━\n" +
-            "Professional AI Assistant is online.\n\n" +
-            "📜 *Commands:*\n" +
-            "• `/start <link>` - Join meeting\n" +
-            "• `/status` - Check health\n" +
-            "• `/reset` - Force refresh\n\n" +
-            "💡 *Tip:* Send link directly to start.";
+            "Hello! I am your AI Meeting Assistant. I can join meetings, record them in high quality, and generate AI transcripts.\n\n" +
+            "📜 *Available Commands:*\n" +
+            "• `/start <link>` - Wake up bot and join a meeting.\n" +
+            "• `/status` - Check engine health and duration.\n" +
+            "• `/reset` - Perform a system hard reset.\n\n" +
+            "💡 *Tip:* You can also start by simply sending a meeting link.";
         return ctx.replyWithMarkdown(introText);
     });
 
     bot.command('reset', async (ctx) => {
+        sessionState.handoffActive = false;
         resetSessionState();
         await startEngine(false);
         return ctx.replyWithMarkdown("🔄 *Hard Reset Successful*");
@@ -102,6 +121,7 @@ function registerHandlers() {
     });
 
     bot.on('text', async (ctx, next) => {
+        if (sessionState.handoffActive) return;
         const text = ctx.message.text;
         if (text.startsWith('/')) return next();
 
@@ -161,9 +181,9 @@ function registerHandlers() {
 }
 
 async function handleJoin(ctx, meetingUrl) {
-    if (sessionState.isProcessing) return;
+    if (sessionState.isProcessing || sessionState.handoffActive) return;
 
-    console.log(`🚀 [JOIN] Triggering Runner: ${meetingUrl}`);
+    console.log(`🚀 [JOIN] Checking workflow for: ${meetingUrl}`);
     const isRunning = await github.isWorkflowRunning();
     if (isRunning) return ctx.replyWithMarkdown("⚠️ *Busy:* Another session is active. Please wait.");
 
@@ -182,19 +202,19 @@ async function handleJoin(ctx, meetingUrl) {
             const dispatchedUI = ui.generatePlayerUI({ status: 'DEPLOYING', meetingUrl });
             await ctx.telegram.editMessageText(ctx.chat.id, sessionState.playerMessageId, null, dispatchedUI.text, { parse_mode: 'Markdown', ...dispatchedUI.markup });
 
-            setTimeout(() => {
-                console.log("💤 [POLLING] Pausing for Runner...");
-                bot.stop();
-                isPolling = false;
+            sessionState.handoffActive = true;
+            setTimeout(async () => {
+                await stopEngine();
                 sessionState.isProcessing = false;
             }, 5000);
 
             setTimeout(() => {
-                if (!isPolling) {
-                    console.log("⏰ [SYSTEM] Safety Wakeup triggered.");
+                if (sessionState.handoffActive) {
+                    console.log("⏰ [SYSTEM] Handoff safety timeout. Re-enabling Engine.");
+                    sessionState.handoffActive = false;
                     startEngine(false);
                 }
-            }, 5 * 60 * 1000);
+            }, 6 * 60 * 60 * 1000);
         } catch (error) {
             resetSessionState();
             const errorUI = ui.generatePlayerUI({ status: 'ERROR', meetingUrl });
@@ -207,8 +227,8 @@ registerHandlers();
 startEngine(true);
 
 setInterval(() => {
-    if (!isPolling) {
-        console.log("🛠 [WATCHDOG] Engine is offline. Restarting now...");
+    if (!isPolling && !sessionState.handoffActive) {
+        console.log("🛠 [WATCHDOG] Engine is offline and no handoff. Restarting...");
         startEngine(false);
     }
-}, 10000);
+}, 20000);
