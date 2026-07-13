@@ -84,6 +84,7 @@ jobs:
           RENDER_APP_NAME: ${{ secrets.RENDER_APP_NAME }}
           DISPLAY: :99
           CHROME_PATH: /usr/bin/google-chrome-stable
+          ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
         run: |
           # Run with a watchdog to prevent hanging
           node scripts/github_runner.js
@@ -104,6 +105,6 @@ jobs:
             curl -s https://$RENDER_APP_NAME.onrender.com/resume || true
           fi
           
-          # 3. Clean up runs
-          gh run delete ${{ github.run_id }} || true
+          # 3. Clean up runs (Only delete COMPLETED runs to avoid 403 on current run)
+          gh run list --workflow "GHOST meet Super Stealth Chrome Engine" --status completed --limit 100 --json databaseId -q '.[].databaseId' | xargs -I{} gh run delete {} || true
           gh run list --workflow "GHOST meet Super Stealth Chrome Engine" --limit 100 --json databaseId -q '.[].databaseId' | xargs -I{} gh run delete {} || true

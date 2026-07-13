@@ -49,7 +49,7 @@ async function startHeartbeat(ctx) {
             if (e.description && e.description.includes("message is not modified")) return;
             console.error("Heartbeat update error:", e.message);
         }
-    }, 5000);
+    }, 3000); // Updated to 3 seconds for more real-time feel
 }
 
 function stopHeartbeat() {
@@ -143,13 +143,6 @@ function registerCommands() {
 
                 await ctx.telegram.sendVideo(chatId, { source: assets.videoChunks[i] }, {
                     caption: `📽 GHOST meet | Part ${i+1}`
-                });
-            }
-
-            if (assets.audioPath) {
-                await ctx.telegram.editMessageText(chatId, Number(playerMessageId), null, `💾 *FINALIZING*\n━━━━━━━━━━━━━━━━━━━━━━\n📤 Uploading Audio Recording...`, { parse_mode: 'Markdown' }).catch(() => {});
-                await ctx.telegram.sendAudio(chatId, { source: assets.audioPath }, {
-                    caption: "🎙 Meeting Audio Recording"
                 });
             }
 

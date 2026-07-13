@@ -56,7 +56,7 @@ function generatePlayerUI(params) {
     } else if (status === 'STARTING') {
         uiText += `⚡ Initializing engine... Please wait.`;
     } else if (status === 'RECORDING') {
-        uiText += `⏺ CAPTURING LIVE FEED...`;
+        uiText += `⏺ *CAPTURING LIVE FEED...* 🛰`;
     } else if (status === 'STOPPING') {
         uiText += `💾 Finalizing capture... Please wait.`;
     } else if (status === 'FINALIZING') {
