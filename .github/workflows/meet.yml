@@ -20,6 +20,8 @@ jobs:
   capture:
     runs-on: ubuntu-latest
     timeout-minutes: 360
+    env:
+      ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
     
     steps:
       - name: Checkout Code
@@ -84,7 +86,6 @@ jobs:
           RENDER_APP_NAME: ${{ secrets.RENDER_APP_NAME }}
           DISPLAY: :99
           CHROME_PATH: /usr/bin/google-chrome-stable
-          ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
         run: |
           # Run with a watchdog to prevent hanging
           node scripts/github_runner.js
