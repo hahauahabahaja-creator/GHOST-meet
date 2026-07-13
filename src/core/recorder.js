@@ -35,7 +35,7 @@ async function startRecording() {
         '-f', 'x11grab',
         '-video_size', '1280x720',
         '-framerate', '20',
-        '-i', ':99.0',
+        '-i', ':99.0+0,0', // Force capture from top-left (0,0)
         '-f', 'pulse',
         '-i', 'v_sink.monitor',
         '-c:v', 'libx264',

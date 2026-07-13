@@ -37,10 +37,11 @@ async function launchMeeting(url) {
             executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome-stable',
             headless: false,
             userDataDir: userDataDir,
-            defaultViewport: null,
+            defaultViewport: { width: 1280, height: 720 },
             ignoreDefaultArgs: ['--disable-extensions'],
             args: [
-                '--start-maximized',
+                '--window-size=1280,720',
+                '--force-device-scale-factor=1',
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--use-fake-ui-for-media-stream',
@@ -85,8 +86,6 @@ async function launchMeeting(url) {
         }
 
         const vncPass = process.env.VNC_PASSWORD || "";
-        // FORCE Protocol Handling: Some mobile browsers fail SSL handshakes on Serveo subdomains
-        // Using a more robust URL structure with explicit scale and touch support
         const dashboardUrl = `${tunnelUrl}/vnc.html?autoconnect=true&password=${vncPass}&resize=scale&scale=1.0&touch_mode=1&view_only=false&reconnect=true`;
 
         return { url: dashboardUrl };
