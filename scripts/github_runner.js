@@ -17,6 +17,7 @@ const playerMessageId = process.env.PLAYER_MESSAGE_ID;
 const chatId = process.env.CHAT_ID || groupId;
 
 let isRecording = false;
+let isStopping = false;
 let heartbeatInterval = null;
 let recordingStartTime = null;
 let currentDashboardUrl = null;
@@ -92,6 +93,9 @@ function registerCommands() {
     });
 
     bot.action('cmd_stop', async (ctx) => {
+        if (isStopping) return;
+        isStopping = true;
+
         console.log("Runner: Stop Action Received via Callback.");
 
         try {

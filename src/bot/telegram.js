@@ -390,18 +390,18 @@ app.listen(PORT, '0.0.0.0', () => {
 let isPolling = false;
 let shouldPoll = true;
 
-async function launchBot() {
+async function launchBot(dropUpdates = true) {
     if (isPolling || !shouldPoll) return;
-    bot.launch({ dropPendingUpdates: true })
+    bot.launch({ dropPendingUpdates: dropUpdates })
         .then(() => {
             isPolling = true;
-            console.log("🚀 GHOST meet Bot is initialized and guarding the group.");
+            console.log(`🚀 GHOST meet Bot is active (DropUpdates: ${dropUpdates})`);
         })
         .catch((err) => {
             if (shouldPoll) {
                 console.error("❌ Telegram Launch Error:", err.message);
-                console.log("🔄 Retrying bot connection in 10 seconds...");
-                setTimeout(launchBot, 10000);
+                isPolling = false;
+                setTimeout(() => launchBot(dropUpdates), 10000);
             }
         });
 }
@@ -416,12 +416,20 @@ function stopBot() {
 app.get('/resume', (req, res) => {
     console.log("🔔 Wake up signal received from Runner.");
     shouldPoll = true;
+    isPolling = false;
     resetSessionState();
-    launchBot();
+    launchBot(false);
     res.send('Bot Resumed');
 });
 
-launchBot();
+setInterval(() => {
+    if (shouldPoll && !isPolling) {
+        console.log("🛠 Watchdog: Bot should be polling but is not. Restarting...");
+        launchBot(false);
+    }
+}, 30000);
+
+launchBot(true);
 
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
