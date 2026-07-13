@@ -425,30 +425,34 @@ app.listen(PORT, '0.0.0.0', () => {
 });
 
 let isPolling = false;
+let shouldPoll = true; // NEW: Global control to prevent "Bot War"
 
 async function launchBot() {
-    if (isPolling) return;
-    bot.launch()
+    if (isPolling || !shouldPoll) return;
+    bot.launch({ dropPendingUpdates: true })
         .then(() => {
             isPolling = true;
             console.log("🚀 GHOST meet Bot is initialized and guarding the group.");
         })
         .catch((err) => {
-            console.error("❌ Telegram Launch Error:", err.message);
-            console.log("🔄 Retrying bot connection in 10 seconds...");
-            setTimeout(launchBot, 10000);
+            if (shouldPoll) {
+                console.error("❌ Telegram Launch Error:", err.message);
+                console.log("🔄 Retrying bot connection in 10 seconds...");
+                setTimeout(launchBot, 10000);
+            }
         });
 }
 
 function stopBot() {
-    if (!isPolling) return;
+    shouldPoll = false; // Lock polling
     bot.stop();
     isPolling = false;
-    console.log("💤 Bot is now in SLEEP mode (Handed over to Runner).");
+    console.log("💤 Bot is now in STRICT SLEEP mode (Handed over to Runner).");
 }
 
 app.get('/resume', (req, res) => {
     console.log("🔔 Wake up signal received from Runner.");
+    shouldPoll = true; // Unlock polling
     launchBot();
     res.send('Bot Resumed');
 });
