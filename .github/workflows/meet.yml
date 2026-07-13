@@ -103,9 +103,11 @@ jobs:
           
           # 2. Wake up Render Bot if it hasn't already
           if [ ! -z "$RENDER_APP_NAME" ]; then
-            curl -s https://$RENDER_APP_NAME.onrender.com/resume || true
+            echo "🔔 Notifying Render to resume..."
+            curl -s --max-time 10 https://$RENDER_APP_NAME.onrender.com/resume || true
           fi
           
           # 3. Clean up runs (Only delete COMPLETED runs to avoid 403 on current run)
-          gh run list --workflow "GHOST meet Super Stealth Chrome Engine" --status completed --limit 100 --json databaseId -q '.[].databaseId' | xargs -I{} gh run delete {} || true
-          gh run list --workflow "GHOST meet Super Stealth Chrome Engine" --limit 100 --json databaseId -q '.[].databaseId' | xargs -I{} gh run delete {} || true
+          # Use gh run delete with retry or ignore errors
+          gh run list --workflow "GHOST meet Super Stealth Chrome Engine" --status completed --limit 50 --json databaseId -q '.[].databaseId' | xargs -r -n 1 gh run delete || true
+

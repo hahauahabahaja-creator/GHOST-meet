@@ -55,14 +55,22 @@ async function startEngine(dropUpdates = false) {
             isPolling = false;
         }
 
+        console.log("🚀 [ENGINE] Starting polling...");
         await bot.launch({ dropPendingUpdates: dropUpdates });
         isPolling = true;
         console.log("✅ [ENGINE] GHOST meet is ACTIVE.");
     } catch (err) {
-        console.error("❌ [ERROR] Engine Crash:", err.message);
-        isPolling = false;
+        if (err.message.includes('409')) {
+            console.log("⚠️ [CONFLICT] Another instance is running. Handoff might be in progress.");
+            isPolling = false;
+        } else {
+            console.error("❌ [ERROR] Engine Crash:", err.message);
+            isPolling = false;
+        }
+
         if (!sessionState.handoffActive) {
-            setTimeout(() => startEngine(false), 10000);
+            console.log("🛠 [RECOVERY] Retrying engine start in 15s...");
+            setTimeout(() => startEngine(false), 15000);
         }
     }
 }
@@ -70,7 +78,12 @@ async function startEngine(dropUpdates = false) {
 async function stopEngine() {
     console.log("💤 [ENGINE] Stopping polling for handoff...");
     isPolling = false;
-    await bot.stop();
+    try {
+        await bot.stop();
+        console.log("✅ [ENGINE] Polling stopped successfully.");
+    } catch (e) {
+        console.log("⚠️ [ENGINE] Error during stop (possibly already stopped):", e.message);
+    }
 }
 
 const app = express();
@@ -80,8 +93,14 @@ app.get('/resume', async (req, res) => {
     console.log("🔔 [SIGNAL] Resume signal received.");
     sessionState.handoffActive = false;
     resetSessionState();
-    await startEngine(false);
-    res.send('Engine Resumed');
+
+    // Give the runner time to die before starting
+    setTimeout(async () => {
+        console.log("🛠 [SYSTEM] Attempting to resume polling...");
+        await startEngine(true); // Drop updates that might have been handled by runner
+    }, 5000);
+
+    res.send('Engine Resume Initiated');
 });
 
 app.get('/', (req, res) => res.send('GHOST Engine Active!'));
@@ -203,10 +222,13 @@ async function handleJoin(ctx, meetingUrl) {
             await ctx.telegram.editMessageText(ctx.chat.id, sessionState.playerMessageId, null, dispatchedUI.text, { parse_mode: 'Markdown', ...dispatchedUI.markup });
 
             sessionState.handoffActive = true;
+
+            // Critical: Stop engine IMMEDIATELY after triggering runner to avoid 409
+            console.log("🔄 [SYSTEM] Runner triggered. Relinquishing bot session...");
             setTimeout(async () => {
                 await stopEngine();
                 sessionState.isProcessing = false;
-            }, 5000);
+            }, 2000);
 
             setTimeout(() => {
                 if (sessionState.handoffActive) {

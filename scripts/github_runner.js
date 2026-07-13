@@ -202,14 +202,16 @@ async function run() {
         registerCommands();
 
         async function claimSession() {
-            try {
-                console.log("Claiming session... (Silencing other instances)");
-                await bot.telegram.deleteWebhook({ drop_pending_updates: true });
-                await new Promise(r => setTimeout(r, 2000));
-            } catch (e) {
-                console.log(`Session Claim Warning: ${e.message}`);
-            }
+        try {
+            console.log("Claiming session... Waiting for Render instance to disconnect.");
+            await new Promise(r => setTimeout(r, 5000)); // Increased delay
+
+            await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+            console.log("Webhook deleted. Attempting launch...");
+        } catch (e) {
+            console.log(`Session Claim Warning: ${e.message}`);
         }
+    }
 
         await claimSession();
 
