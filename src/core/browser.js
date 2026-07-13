@@ -41,6 +41,7 @@ async function launchMeeting(url) {
             ignoreDefaultArgs: ['--disable-extensions'],
             args: [
                 '--window-size=1280,720',
+                '--window-position=0,0',
                 '--force-device-scale-factor=1',
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
@@ -58,6 +59,8 @@ async function launchMeeting(url) {
 
         const pages = await browser.pages();
         page = pages[0];
+
+        await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
 
         let attempts = 0;
         const maxAttempts = 5;

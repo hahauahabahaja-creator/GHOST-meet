@@ -72,6 +72,7 @@ const PORT = process.env.PORT || 10000;
 app.get('/resume', (req, res) => {
     console.log("🔔 Wake up signal received from Runner.");
     shouldPoll = true;
+    isPolling = false;
     resetSessionState();
     launchBot(false);
     res.send('Bot Resumed');
@@ -102,6 +103,17 @@ bot.command('start', async (ctx) => {
         "• `/reset` - Perform a system hard reset.\n\n" +
         "💡 *Tip:* You can also start by simply sending a meeting link.";
     return ctx.replyWithMarkdown(introText);
+});
+
+bot.command('help', (ctx) => {
+    const helpText =
+        "❓ *GHOST meet Support*\n" +
+        "━━━━━━━━━━━━━━━━━━━━━━\n" +
+        "1. Send meeting link (Meet, Zoom, Teams).\n" +
+        "2. Use buttons in the Player window.\n" +
+        "3. Click STOP once the meeting ends.\n\n" +
+        "Assets will be uploaded to this group automatically.";
+    return ctx.replyWithMarkdown(helpText);
 });
 
 bot.command('reset', async (ctx) => {

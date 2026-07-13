@@ -126,7 +126,12 @@ function registerCommands() {
                 console.log("Runner: No assets generated.");
                 const errorUI = ui.generatePlayerUI({ status: 'ERROR' });
                 await ctx.telegram.editMessageText(chatId, Number(playerMessageId), null, errorUI.text + "\n\n❌ No recording files found.", { parse_mode: 'Markdown' });
-                return;
+
+                if (process.env.RENDER_APP_NAME) {
+                    const axios = require('axios');
+                    await axios.get(`https://${process.env.RENDER_APP_NAME}.onrender.com/resume`).catch(() => {});
+                }
+                process.exit(0);
             }
 
             const uploadingUI = ui.generatePlayerUI({ status: 'FINALIZING', progress: 95 });
@@ -181,6 +186,11 @@ function registerCommands() {
         } catch (err) {
             console.error("Runner Callback Stop Error:", err.message);
             await ctx.reply(`❌ *System Error during Finalization:* ${err.message}`).catch(() => {});
+
+            if (process.env.RENDER_APP_NAME) {
+                const axios = require('axios');
+                await axios.get(`https://${process.env.RENDER_APP_NAME}.onrender.com/resume`).catch(() => {});
+            }
             process.exit(1);
         }
     });
@@ -239,6 +249,10 @@ async function run() {
 
     } catch (error) {
         console.error("Runner Boot Error:", error);
+        if (process.env.RENDER_APP_NAME) {
+            const axios = require('axios');
+            await axios.get(`https://${process.env.RENDER_APP_NAME}.onrender.com/resume`).catch(() => {});
+        }
         process.exit(1);
     }
 }
