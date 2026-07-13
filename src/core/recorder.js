@@ -60,89 +60,85 @@ async function startRecording() {
 }
 
 async function stopRecording() {
-    logger.info("Initiating HIGH-RESILIENCE stopRecording sequence...");
+    logger.info("Initiating ULTRA-ROBUST stopRecording sequence...");
 
-    // 1. UPDATE UI
-    await updateStatus('STOPPING', 10);
-
-    // 2. STOP FFMPEG FIRST (Priority)
-    if (ffmpegProcess && !ffmpegProcess.killed) {
-        logger.info("Stopping FFmpeg (Priority 1)...");
-        try {
-            ffmpegProcess.stdin.write('q');
-        } catch (e) {
-            ffmpegProcess.kill('SIGINT');
-        }
-
-        await new Promise((resolve) => {
-            const forceKill = setTimeout(() => {
-                logger.warn("FFmpeg didn't stop gracefully, force killing...");
-                if (ffmpegProcess) ffmpegProcess.kill('SIGKILL');
-                resolve();
-            }, 5000);
-
-            ffmpegProcess.on('exit', () => {
-                clearTimeout(forceKill);
-                logger.info("FFmpeg stopped successfully.");
-                resolve();
-            });
-        });
-    }
-
-    // 3. CLEANUP BROWSER IN BACKGROUND (Don't wait for it!)
-    logger.info("Triggering browser cleanup in background...");
-    const browserManager = require('./browser');
-    browserManager.closeBrowser().catch(e => logger.error(`Background browser cleanup error: ${e.message}`));
-
-    // 4. Post-Processing
     try {
-        await new Promise(r => setTimeout(r, 2000)); // Small buffer for file sync
+        // 1. UPDATE UI: STEP 1
+        await updateStatus('STOPPING', 10);
+        logger.info("Step 1: Sending SIGINT to FFmpeg via pkill...");
 
-        if (!fs.existsSync(rawVideoPath)) {
-            logger.error("Master recording (MKV) not found.");
+        // Use shell-level pkill for maximum reliability
+        exec('pkill -SIGINT ffmpeg');
+
+        // Background browser kill - don't let it block us
+        const browserManager = require('./browser');
+        browserManager.closeBrowser().catch(e => logger.error(`Background cleanup error: ${e.message}`));
+
+        // 2. FIXED SLEEP (Wait for FFmpeg to flush MKV)
+        await new Promise(r => setTimeout(r, 6000));
+        logger.info("Step 2: Grace period over. Ensuring FFmpeg is dead...");
+        exec('pkill -9 ffmpeg');
+
+        // 3. SECURE ASSETS
+        await updateStatus('FINALIZING', 30);
+
+        if (!fs.existsSync(rawVideoPath) || fs.statSync(rawVideoPath).size < 1000) {
+            logger.error("Critical Error: Raw MKV file is missing or empty.");
             return { videoChunks: [], audioPath: null, transcriptPath: null };
         }
 
-        await updateStatus('FINALIZING', 20);
-        logger.info("Converting MKV to MP4...");
+        // 4. CONVERSION (With Fallback)
+        await updateStatus('FINALIZING', 50);
+        logger.info("Step 3: Converting/Optimizing Video...");
+
+        let processedVideoPath = masterMp4Path;
         try {
-            // Using superfast preset for guaranteed conversion speed
-            await execPromise(`ffmpeg -i "${rawVideoPath}" -c:v copy -c:a aac -movflags +faststart -y "${masterMp4Path}"`);
+            // Attempt fast conversion
+            await execPromise(`ffmpeg -i "${rawVideoPath}" -c copy -movflags +faststart -y "${masterMp4Path}"`);
         } catch (e) {
-            logger.warn(`Fast conversion failed, trying re-encoding: ${e.message}`);
-            await execPromise(`ffmpeg -i "${rawVideoPath}" -c:v libx264 -preset superfast -crf 28 -c:a aac -y "${masterMp4Path}"`);
+            logger.warn(`Conversion failed: ${e.message}. Falling back to RAW MKV.`);
+            processedVideoPath = rawVideoPath; // Use the raw file if conversion fails
         }
 
-        await updateStatus('FINALIZING', 40);
-        logger.info("Splitting video into chunks...");
-        let videoChunks = await processChunks(masterMp4Path);
+        // 5. CHUNKING
+        await updateStatus('FINALIZING', 70);
+        let videoChunks = [];
+        if (processedVideoPath === masterMp4Path) {
+            videoChunks = await processChunks(masterMp4Path);
+        } else {
+            videoChunks = [processedVideoPath];
+        }
+
         videoChunks = videoChunks.filter(f => fs.existsSync(f) && fs.statSync(f).size > 0);
 
-        await updateStatus('FINALIZING', 60);
-
+        // 6. TRANSCRIPTION (Non-blocking)
         let transcriptPath = null;
-        // Only attempt transcription if audio file is valid
-        if (fs.existsSync(audioExtractPath) && fs.statSync(audioExtractPath).size > 2000) {
+        if (fs.existsSync(audioExtractPath) && fs.statSync(audioExtractPath).size > 5000) {
             try {
-                logger.info("Starting Whisper AI Transcription...");
-                const transcriptionPromise = transcriber.transcribe(audioExtractPath);
-                const transcriptionTimeout = new Promise(r => setTimeout(() => r(null), 8 * 60 * 1000)); // 8 min max
-                transcriptPath = await Promise.race([transcriptionPromise, transcriptionTimeout]);
+                logger.info("Step 4: Background Transcription...");
+                const transPromise = transcriber.transcribe(audioExtractPath);
+                const transTimeout = new Promise(r => setTimeout(() => r(null), 4 * 60 * 1000));
+                transcriptPath = await Promise.race([transPromise, transTimeout]);
             } catch (e) {
-                logger.error(`Transcription failed: ${e.message}`);
+                logger.error(`Transcription skipped: ${e.message}`);
             }
         }
 
         await updateStatus('FINALIZING', 95);
-        logger.info("All tasks complete. Returning assets.");
+        logger.info("Ultra-Robust sequence complete.");
         return {
             videoChunks,
             audioPath: (fs.existsSync(audioExtractPath) && fs.statSync(audioExtractPath).size > 0) ? audioExtractPath : null,
             transcriptPath
         };
+
     } catch (err) {
-        logger.error(`Deep Post-processing Failure: ${err.message}`);
-        return { videoChunks: [], audioPath: null, transcriptPath: null };
+        logger.error(`ULTRA-ROBUST FATAL ERROR: ${err.message}`);
+        return {
+            videoChunks: fs.existsSync(rawVideoPath) ? [rawVideoPath] : [],
+            audioPath: fs.existsSync(audioExtractPath) ? audioExtractPath : null,
+            transcriptPath: null
+        };
     }
 }
 

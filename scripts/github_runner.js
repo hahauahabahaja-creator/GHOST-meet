@@ -138,26 +138,28 @@ function registerCommands() {
             console.log("Runner: Starting media uploads...");
 
             for (let i = 0; i < assets.videoChunks.length; i++) {
-                await ctx.telegram.editMessageText(chatId, Number(playerMessageId), null, `💾 *FINALIZING*\n━━━━━━━━━━━━━━━━━━━━━━\n📤 Uploading Video Part ${i+1}/${assets.videoChunks.length}...`, { parse_mode: 'Markdown' }).catch(() => {});
-                await ctx.replyWithVideo({ source: assets.videoChunks[i] }, {
+                const partInfo = `📤 Uploading Video Part ${i+1}/${assets.videoChunks.length}...`;
+                await ctx.telegram.editMessageText(chatId, Number(playerMessageId), null, `💾 *FINALIZING*\n━━━━━━━━━━━━━━━━━━━━━━\n${partInfo}`, { parse_mode: 'Markdown' }).catch(() => {});
+
+                await ctx.telegram.sendVideo(chatId, { source: assets.videoChunks[i] }, {
                     caption: `📽 GHOST meet | Part ${i+1}`
                 });
             }
 
             if (assets.audioPath) {
                 await ctx.telegram.editMessageText(chatId, Number(playerMessageId), null, `💾 *FINALIZING*\n━━━━━━━━━━━━━━━━━━━━━━\n📤 Uploading Audio Recording...`, { parse_mode: 'Markdown' }).catch(() => {});
-                await ctx.replyWithAudio({ source: assets.audioPath }, {
+                await ctx.telegram.sendAudio(chatId, { source: assets.audioPath }, {
                     caption: "🎙 Meeting Audio Recording"
                 });
             }
 
             if (assets.transcriptPath) {
                 await ctx.telegram.editMessageText(chatId, Number(playerMessageId), null, `💾 *FINALIZING*\n━━━━━━━━━━━━━━━━━━━━━━\n📤 Uploading AI Transcript...`, { parse_mode: 'Markdown' }).catch(() => {});
-                await ctx.replyWithDocument({ source: assets.transcriptPath }, {
+                await ctx.telegram.sendDocument(chatId, { source: assets.transcriptPath }, {
                     caption: "📄 AI Meeting Transcript (Hinglish)"
                 });
             } else {
-                await ctx.reply("📄 *AI Transcript:* Skip/Not generated (No audio detected).", { parse_mode: 'Markdown' }).catch(() => {});
+                await ctx.telegram.sendMessage(chatId, "📄 *AI Transcript:* Skip/Not generated (No audio detected).", { parse_mode: 'Markdown' }).catch(() => {});
             }
 
             const completedUI = ui.generatePlayerUI({ status: 'COMPLETED', progress: 100 });
