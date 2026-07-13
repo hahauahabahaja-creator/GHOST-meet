@@ -188,13 +188,6 @@ bot.command('stop', async (ctx) => {
             );
         }
 
-        if (assets.audioPath) {
-            await ctx.replyWithAudio(
-                { source: assets.audioPath },
-                { caption: "🎙 Meeting Audio Recording\n✨ High quality capture" }
-            );
-        }
-
         if (assets.transcriptPath) {
             await ctx.replyWithDocument(
                 { source: assets.transcriptPath },
@@ -202,11 +195,7 @@ bot.command('stop', async (ctx) => {
             );
         }
 
-        sessionState.isJoined = false;
-        sessionState.isRecording = false;
-        sessionState.currentUrl = null;
-        sessionState.playerMessageId = null;
-        sessionState.recordingStartTime = null;
+        resetSessionState();
 
         const finalUI =
             "✨ *SESSION COMPLETE*\n" +
@@ -338,10 +327,6 @@ bot.action('cmd_stop', async (ctx) => {
             });
         }
 
-        if (assets.audioPath) {
-            await ctx.replyWithAudio({ source: assets.audioPath }, { caption: "🎙 Audio Recording" });
-        }
-
         if (assets.transcriptPath) {
             await ctx.replyWithDocument({ source: assets.transcriptPath }, { caption: "📄 Transcript" });
         }
@@ -349,7 +334,7 @@ bot.action('cmd_stop', async (ctx) => {
         const completedUI = ui.generatePlayerUI({ status: 'COMPLETED' });
         await ctx.telegram.editMessageText(ctx.chat.id, sessionState.playerMessageId, null, completedUI.text, { parse_mode: 'Markdown' });
 
-        sessionState.isJoined = false;
+        resetSessionState();
     } catch (e) {
         logger.error("Stop Action Error:", e.message);
     }
@@ -381,6 +366,18 @@ bot.action('help_guide', (ctx) => {
     ctx.answerCbQuery();
     ctx.reply("GHOST meet Manual:\n1. Send the meeting link directly to this chat.\n2. Use the interactive PLAYER buttons to Start, Stop, or Take Screenshots.\n3. Recordings and transcripts are delivered automatically.");
 });
+
+function resetSessionState() {
+    sessionState.isJoined = false;
+    sessionState.isRecording = false;
+    sessionState.currentUrl = null;
+    sessionState.playerMessageId = null;
+    sessionState.recordingStartTime = null;
+    if (sessionState.timerInterval) {
+        clearInterval(sessionState.timerInterval);
+        sessionState.timerInterval = null;
+    }
+}
 
 const app = express();
 const PORT = process.env.PORT || 10000;
@@ -419,6 +416,7 @@ function stopBot() {
 app.get('/resume', (req, res) => {
     console.log("🔔 Wake up signal received from Runner.");
     shouldPoll = true;
+    resetSessionState();
     launchBot();
     res.send('Bot Resumed');
 });
