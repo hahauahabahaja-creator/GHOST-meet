@@ -60,50 +60,43 @@ async function startRecording() {
 }
 
 async function stopRecording() {
-    logger.info("Initiating stopRecording sequence...");
+    logger.info("Initiating HIGH-RESILIENCE stopRecording sequence...");
 
-    // 1. Force Browser to close first (Leaves meeting)
-    try {
-        await updateStatus('STOPPING', 10);
-        logger.info("Triggering browser close to leave meeting...");
-        const browserManager = require('./browser');
+    // 1. UPDATE UI
+    await updateStatus('STOPPING', 10);
 
-        // Timeout for browser close to prevent hang
-        const browserClosePromise = browserManager.closeBrowser();
-        const timeoutPromise = new Promise(r => setTimeout(r, 15000)); // 15s max
-        await Promise.race([browserClosePromise, timeoutPromise]);
-    } catch (e) {
-        logger.warn("Browser close during stop failed or timed out:", e.message);
-    }
-
-    // 2. Stop FFmpeg
+    // 2. STOP FFMPEG FIRST (Priority)
     if (ffmpegProcess && !ffmpegProcess.killed) {
-        logger.info("Stopping active FFmpeg process...");
+        logger.info("Stopping FFmpeg (Priority 1)...");
         try {
             ffmpegProcess.stdin.write('q');
         } catch (e) {
-            ffmpegProcess.kill('SIGTERM');
+            ffmpegProcess.kill('SIGINT');
         }
 
-        // Wait for exit or force kill
         await new Promise((resolve) => {
             const forceKill = setTimeout(() => {
-                logger.warn("FFmpeg hang detected, forcing SIGKILL...");
+                logger.warn("FFmpeg didn't stop gracefully, force killing...");
                 if (ffmpegProcess) ffmpegProcess.kill('SIGKILL');
                 resolve();
-            }, 8000);
+            }, 5000);
 
             ffmpegProcess.on('exit', () => {
                 clearTimeout(forceKill);
-                logger.info("FFmpeg exited.");
+                logger.info("FFmpeg stopped successfully.");
                 resolve();
             });
         });
     }
 
-    // 3. Post-Processing
+    // 3. CLEANUP BROWSER IN BACKGROUND (Don't wait for it!)
+    logger.info("Triggering browser cleanup in background...");
+    const browserManager = require('./browser');
+    browserManager.closeBrowser().catch(e => logger.error(`Background browser cleanup error: ${e.message}`));
+
+    // 4. Post-Processing
     try {
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise(r => setTimeout(r, 2000)); // Small buffer for file sync
 
         if (!fs.existsSync(rawVideoPath)) {
             logger.error("Master recording (MKV) not found.");
@@ -113,44 +106,42 @@ async function stopRecording() {
         await updateStatus('FINALIZING', 20);
         logger.info("Converting MKV to MP4...");
         try {
-            await execPromise(`ffmpeg -i "${rawVideoPath}" -c copy -movflags +faststart -y "${masterMp4Path}"`);
+            // Using superfast preset for guaranteed conversion speed
+            await execPromise(`ffmpeg -i "${rawVideoPath}" -c:v copy -c:a aac -movflags +faststart -y "${masterMp4Path}"`);
         } catch (e) {
-            logger.warn(`Fast conversion failed: ${e.message}. Trying re-encoding...`);
+            logger.warn(`Fast conversion failed, trying re-encoding: ${e.message}`);
             await execPromise(`ffmpeg -i "${rawVideoPath}" -c:v libx264 -preset superfast -crf 28 -c:a aac -y "${masterMp4Path}"`);
         }
 
         await updateStatus('FINALIZING', 40);
         logger.info("Splitting video into chunks...");
         let videoChunks = await processChunks(masterMp4Path);
-
-        // Final sanity check on chunks
         videoChunks = videoChunks.filter(f => fs.existsSync(f) && fs.statSync(f).size > 0);
 
         await updateStatus('FINALIZING', 60);
 
         let transcriptPath = null;
-        if (fs.existsSync(audioExtractPath) && fs.statSync(audioExtractPath).size > 1000) {
+        // Only attempt transcription if audio file is valid
+        if (fs.existsSync(audioExtractPath) && fs.statSync(audioExtractPath).size > 2000) {
             try {
                 logger.info("Starting Whisper AI Transcription...");
                 const transcriptionPromise = transcriber.transcribe(audioExtractPath);
-                const transcriptionTimeout = new Promise(r => setTimeout(() => r(null), 5 * 60 * 1000)); // 5 min max
+                const transcriptionTimeout = new Promise(r => setTimeout(() => r(null), 8 * 60 * 1000)); // 8 min max
                 transcriptPath = await Promise.race([transcriptionPromise, transcriptionTimeout]);
             } catch (e) {
                 logger.error(`Transcription failed: ${e.message}`);
             }
-        } else {
-            logger.warn("Audio file too small or missing, skipping transcription.");
         }
 
-        await updateStatus('FINALIZING', 90);
-        logger.info("Stop sequence complete.");
+        await updateStatus('FINALIZING', 95);
+        logger.info("All tasks complete. Returning assets.");
         return {
             videoChunks,
             audioPath: (fs.existsSync(audioExtractPath) && fs.statSync(audioExtractPath).size > 0) ? audioExtractPath : null,
             transcriptPath
         };
     } catch (err) {
-        logger.error(`Post-processing Failure: ${err.message}`);
+        logger.error(`Deep Post-processing Failure: ${err.message}`);
         return { videoChunks: [], audioPath: null, transcriptPath: null };
     }
 }

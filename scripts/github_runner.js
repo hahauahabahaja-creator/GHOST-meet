@@ -117,9 +117,10 @@ function registerCommands() {
             console.log("Runner: Triggering recorder.stopRecording()...");
 
             const stopTimeout = setTimeout(() => {
-                console.error("Runner: stopRecording timed out!");
-                ctx.reply("⚠️ *Timeout:* Asset processing took too long.").catch(() => {});
-            }, 15 * 60 * 1000);
+                console.error("Runner: stopRecording GLOBAL TIMEOUT!");
+                ctx.reply("⚠️ *CRITICAL TIMEOUT:* Assets took too long to process. Attempting emergency exit.").catch(() => {});
+                process.exit(1);
+            }, 10 * 60 * 1000); // 10 Minute Hard Limit
 
             const assets = await recorder.stopRecording();
             clearTimeout(stopTimeout);

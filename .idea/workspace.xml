@@ -8,7 +8,6 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="1436f5db-d10f-4cd8-ac6d-ad283918f9f3" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/scripts/github_runner.js" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/github_runner.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/core/recorder.js" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/recorder.js" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
