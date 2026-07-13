@@ -73,6 +73,26 @@ async function handleJoin(ctx, meetingUrl) {
     }
 }
 
+bot.command('start', async (ctx) => {
+    const parts = ctx.message.text.split(' ');
+    shouldPoll = true;
+    isPolling = false;
+    resetSessionState();
+    await launchBot(false);
+
+    if (parts.length > 1) {
+        const meetingUrl = parts[1];
+        return handleJoin(ctx, meetingUrl);
+    }
+
+    return ctx.replyWithMarkdown("🚀 *GHOST meet Engine Active*\n━━━━━━━━━━━━━━━━━━━━━━\nBot is ready. Send a link or use `/start <link>` if I was sleeping.");
+});
+
+bot.command('reset', async (ctx) => {
+    resetSessionState();
+    return ctx.replyWithMarkdown("🔄 *Session Hard Reset Complete*");
+});
+
 bot.command('join', async (ctx) => {
     const parts = ctx.message.text.split(' ');
     if (parts.length < 2) return ctx.reply("❌ URL missing.");
