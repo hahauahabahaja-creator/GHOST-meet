@@ -42,13 +42,11 @@ let shouldPoll = true;
 
 async function launchBot(dropUpdates = true) {
     if (!shouldPoll) return;
-
     try {
         if (isPolling) {
             bot.stop();
             isPolling = false;
         }
-
         await bot.launch({ dropPendingUpdates: dropUpdates });
         isPolling = true;
         console.log(`🚀 GHOST meet Bot is active (DropUpdates: ${dropUpdates})`);
@@ -84,18 +82,14 @@ app.listen(PORT, '0.0.0.0', () => console.log(`Server is listening on port ${POR
 
 bot.command('start', async (ctx) => {
     if (sessionState.isProcessing) return;
-
     const parts = ctx.message.text.split(' ');
     shouldPoll = true;
     resetSessionState();
-
     if (parts.length > 1) {
         const meetingUrl = parts[1];
         return handleJoin(ctx, meetingUrl);
     }
-
     await launchBot(false);
-
     const introText =
         "🛰 *GHOST meet | Stealth Engine v2.0*\n" +
         "━━━━━━━━━━━━━━━━━━━━━━\n" +
@@ -107,7 +101,6 @@ bot.command('start', async (ctx) => {
         "• `/status` - Check engine health and duration.\n" +
         "• `/reset` - Perform a system hard reset.\n\n" +
         "💡 *Tip:* You can also start by simply sending a meeting link.";
-
     return ctx.replyWithMarkdown(introText);
 });
 
@@ -132,9 +125,7 @@ bot.command('status', (ctx) => {
 bot.on('text', async (ctx, next) => {
     const text = ctx.message.text;
     if (text.startsWith('/')) return next();
-
     const meetingPattern = /(meet\.google\.com\/[a-z0-9-]+)|(zoom\.us\/j\/[0-9]+)|(webex\.com\/[a-z0-9-]+)|(teams\.microsoft\.com\/[a-z0-9-]+)/i;
-
     if (meetingPattern.test(text)) {
         let meetingUrl = text.match(/https?:\/\/[^\s]+/)?.[0] || text;
         if (!meetingUrl.startsWith('http')) {
@@ -142,12 +133,16 @@ bot.on('text', async (ctx, next) => {
         }
         return handleJoin(ctx, meetingUrl);
     }
-
     return next();
 });
 
 async function handleJoin(ctx, meetingUrl) {
     if (sessionState.isProcessing) return;
+
+    const isRunning = await github.isWorkflowRunning();
+    if (isRunning) {
+        return ctx.replyWithMarkdown("⚠️ *Session in Progress:* A meeting is already being captured. Please wait for it to finish.");
+    }
 
     if (sessionState.isJoined) {
         return ctx.replyWithMarkdown("⚠️ *Active Session Found:* Use the existing Player to /stop first.");
@@ -169,7 +164,6 @@ async function handleJoin(ctx, meetingUrl) {
             await ctx.telegram.editMessageText(ctx.chat.id, sessionState.playerMessageId, null, dispatchedUI.text, {
                 parse_mode: 'Markdown', ...dispatchedUI.markup
             });
-
             setTimeout(() => {
                 console.log("Initiating Handoff: Stopping local bot polling...");
                 stopBot();
