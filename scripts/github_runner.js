@@ -47,7 +47,7 @@ async function startHeartbeat(ctx) {
             if (e.description && e.description.includes("message is not modified")) return;
             console.error("Heartbeat update error:", e.message);
         }
-    }, 3000);
+    }, 8000);
 }
 
 function stopHeartbeat() {

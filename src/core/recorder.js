@@ -33,18 +33,18 @@ async function startRecording() {
 
     ffmpegProcess = spawn('ffmpeg', [
         '-f', 'x11grab',
-        '-video_size', '1920x1080',
-        '-framerate', '30',
+        '-video_size', '1280x720',
+        '-framerate', '20',
         '-i', ':99.0',
         '-f', 'pulse',
         '-i', 'v_sink.monitor',
         '-c:v', 'libx264',
-        '-preset', 'ultrafast',
-        '-crf', '28',
+        '-preset', 'veryfast',
+        '-crf', '32',
         '-pix_fmt', 'yuv420p',
         '-c:a', 'aac',
-        '-b:a', '128k',
-        '-ac', '2',
+        '-b:a', '64k',
+        '-ac', '1',
         '-y', rawVideoPath,
         '-vn', '-acodec', 'pcm_s16le', '-ar', '16000', '-ac', '1', '-y', audioExtractPath
     ]);
@@ -133,14 +133,14 @@ async function processChunks(filePath) {
     if (!fs.existsSync(filePath)) return [];
 
     const stats = fs.statSync(filePath);
-    const MAX_SIZE = 45 * 1024 * 1024;
+    const MAX_SIZE = 48 * 1024 * 1024;
 
     if (stats.size <= MAX_SIZE) return [filePath];
 
     try {
         const { stdout } = await execPromise(`ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "${filePath}"`);
         const duration = parseFloat(stdout.trim());
-        const chunkDuration = Math.floor((MAX_SIZE / stats.size) * duration * 0.9);
+        const chunkDuration = Math.floor((MAX_SIZE / stats.size) * duration * 0.95);
 
         const outputPattern = path.join(chunksDir, 'GHOST_meet_Part_%03d.mp4');
         await execPromise(`ffmpeg -i "${filePath}" -f segment -segment_time ${chunkDuration} -c copy -reset_timestamps 1 -movflags +faststart "${outputPattern}"`);
