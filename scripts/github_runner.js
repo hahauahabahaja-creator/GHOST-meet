@@ -1,8 +1,10 @@
 const { Telegraf } = require('telegraf');
-const browserManager = require('../src/core/browser');
-const recorder = require('../src/core/recorder');
-const logger = require('../utils/logger');
-const ui = require('../utils/ui');
+const path = require('path');
+
+const browserManager = require(path.join(__dirname, '../src/core/browser'));
+const recorder = require(path.join(__dirname, '../src/core/recorder'));
+const logger = require(path.join(__dirname, '../src/utils/logger'));
+const ui = require(path.join(__dirname, '../src/utils/ui'));
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 let meetingUrl = process.env.MEETING_URL;
