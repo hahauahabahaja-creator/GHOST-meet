@@ -126,13 +126,17 @@ function registerCommands() {
             }
 
             const uploadingUI = ui.generatePlayerUI({ status: 'FINALIZING', progress: 95 });
-            await ctx.telegram.editMessageText(chatId, Number(playerMessageId), null, uploadingUI.text, { parse_mode: 'Markdown' });
+            await ctx.telegram.editMessageText(chatId, Number(playerMessageId), null, uploadingUI.text, { parse_mode: 'Markdown' }).catch(e => {
+                if (!e.description?.includes("message is not modified")) throw e;
+            });
 
             console.log("Runner: Starting media uploads...");
 
             for (let i = 0; i < assets.videoChunks.length; i++) {
                 const partInfo = `📤 Uploading Video Part ${i+1}/${assets.videoChunks.length}...`;
-                await ctx.telegram.editMessageText(chatId, Number(playerMessageId), null, `💾 *FINALIZING*\n━━━━━━━━━━━━━━━━━━━━━━\n${partInfo}`, { parse_mode: 'Markdown' }).catch(() => {});
+                await ctx.telegram.editMessageText(chatId, Number(playerMessageId), null, `💾 *FINALIZING*\n━━━━━━━━━━━━━━━━━━━━━━\n${partInfo}`, { parse_mode: 'Markdown' }).catch(e => {
+                    if (!e.description?.includes("message is not modified")) console.error("Upload UI Error:", e.message);
+                });
 
                 await ctx.telegram.sendVideo(chatId, { source: assets.videoChunks[i] }, {
                     caption: `📽 GHOST meet | Part ${i+1}`
@@ -140,7 +144,9 @@ function registerCommands() {
             }
 
             if (assets.transcriptPath) {
-                await ctx.telegram.editMessageText(chatId, Number(playerMessageId), null, `💾 *FINALIZING*\n━━━━━━━━━━━━━━━━━━━━━━\n📤 Uploading AI Transcript...`, { parse_mode: 'Markdown' }).catch(() => {});
+                await ctx.telegram.editMessageText(chatId, Number(playerMessageId), null, `💾 *FINALIZING*\n━━━━━━━━━━━━━━━━━━━━━━\n📤 Uploading AI Transcript...`, { parse_mode: 'Markdown' }).catch(e => {
+                    if (!e.description?.includes("message is not modified")) console.error("Transcript UI Error:", e.message);
+                });
                 await ctx.telegram.sendDocument(chatId, { source: assets.transcriptPath }, {
                     caption: "📄 AI Meeting Transcript (Hinglish)"
                 });
@@ -149,7 +155,9 @@ function registerCommands() {
             }
 
             const completedUI = ui.generatePlayerUI({ status: 'COMPLETED', progress: 100 });
-            await ctx.telegram.editMessageText(chatId, Number(playerMessageId), null, completedUI.text, { parse_mode: 'Markdown' });
+            await ctx.telegram.editMessageText(chatId, Number(playerMessageId), null, completedUI.text, { parse_mode: 'Markdown' }).catch(e => {
+                if (!e.description?.includes("message is not modified")) throw e;
+            });
 
             console.log("Runner: Sequence Complete. Cleaning up...");
             await browserManager.closeBrowser().catch(() => {});
