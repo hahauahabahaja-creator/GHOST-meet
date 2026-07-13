@@ -1,6 +1,7 @@
 const { Telegraf, Markup } = require('telegraf');
 const dotenv = require('dotenv');
 const express = require('express');
+const path = require('path');
 const browserManager = require('../core/browser');
 const recorder = require('../core/recorder');
 const github = require('../utils/github');
@@ -22,6 +23,111 @@ const sessionState = {
     timerInterval: null,
     isProcessing: false
 };
+
+function resetSessionState() {
+    sessionState.isJoined = false;
+    sessionState.isRecording = false;
+    sessionState.isProcessing = false;
+    sessionState.currentUrl = null;
+    sessionState.playerMessageId = null;
+    sessionState.recordingStartTime = null;
+    if (sessionState.timerInterval) {
+        clearInterval(sessionState.timerInterval);
+        sessionState.timerInterval = null;
+    }
+}
+
+let isPolling = false;
+let shouldPoll = true;
+
+async function launchBot(dropUpdates = true) {
+    if (!shouldPoll) return;
+
+    try {
+        if (isPolling) {
+            bot.stop();
+            isPolling = false;
+        }
+
+        await bot.launch({ dropPendingUpdates: dropUpdates });
+        isPolling = true;
+        console.log(`🚀 GHOST meet Bot is active (DropUpdates: ${dropUpdates})`);
+    } catch (err) {
+        if (shouldPoll) {
+            console.error("❌ Telegram Launch Error:", err.message);
+            isPolling = false;
+            setTimeout(() => launchBot(dropUpdates), 10000);
+        }
+    }
+}
+
+function stopBot() {
+    shouldPoll = false;
+    bot.stop();
+    isPolling = false;
+    console.log("💤 Bot is now in STRICT SLEEP mode.");
+}
+
+const app = express();
+const PORT = process.env.PORT || 10000;
+
+app.get('/resume', (req, res) => {
+    console.log("🔔 Wake up signal received from Runner.");
+    shouldPoll = true;
+    resetSessionState();
+    launchBot(false);
+    res.send('Bot Resumed');
+});
+
+app.get('/', (req, res) => res.send('GHOST Meet Bot is Running!'));
+app.listen(PORT, '0.0.0.0', () => console.log(`Server is listening on port ${PORT}`));
+
+bot.command('start', async (ctx) => {
+    if (sessionState.isProcessing) return;
+
+    const parts = ctx.message.text.split(' ');
+    shouldPoll = true;
+    resetSessionState();
+
+    if (parts.length > 1) {
+        const meetingUrl = parts[1];
+        return handleJoin(ctx, meetingUrl);
+    }
+
+    await launchBot(false);
+
+    const introText =
+        "🛰 *GHOST meet | Stealth Engine v2.0*\n" +
+        "━━━━━━━━━━━━━━━━━━━━━━\n" +
+        "Hello! I am your AI Meeting Assistant. I can join meetings, record them in high quality, and generate AI transcripts.\n\n" +
+        "📜 *Available Commands:*\n" +
+        "• `/start <link>` - Wake up bot and join a meeting.\n" +
+        "• `/record` - Manually start meeting capture.\n" +
+        "• `/stop` - Finalize, save, and upload assets.\n" +
+        "• `/status` - Check engine health and duration.\n" +
+        "• `/reset` - Perform a system hard reset.\n\n" +
+        "💡 *Tip:* You can also start by simply sending a meeting link.";
+
+    return ctx.replyWithMarkdown(introText);
+});
+
+bot.command('reset', async (ctx) => {
+    resetSessionState();
+    shouldPoll = true;
+    await launchBot(false);
+    return ctx.replyWithMarkdown("🔄 *Session Hard Reset Complete*");
+});
+
+bot.command('status', (ctx) => {
+    const recordingStatus = sessionState.isRecording ? "🔴 ACTIVE" : "⚪ IDLE";
+    const joinStatus = sessionState.isJoined ? "✅ CONNECTED" : "❌ DISCONNECTED";
+    let duration = "0:00";
+    if (sessionState.recordingStartTime) {
+        const elapsed = Math.round((Date.now() - sessionState.recordingStartTime) / 1000);
+        duration = `${Math.floor(elapsed / 60)}:${(elapsed % 60).toString().padStart(2, '0')}`;
+    }
+    ctx.replyWithMarkdown(`📟 *SYSTEM DIAGNOSTICS*\n━━━━━━━━━━━━━━━━━━━━━━\n• Session: ${joinStatus}\n• Recording: ${recordingStatus}\n• Duration: *${duration}*`);
+});
 
 bot.on('text', async (ctx, next) => {
     const text = ctx.message.text;
@@ -67,7 +173,6 @@ async function handleJoin(ctx, meetingUrl) {
             setTimeout(() => {
                 console.log("Initiating Handoff: Stopping local bot polling...");
                 stopBot();
-                sessionState.isProcessing = false;
             }, 5000);
         } catch (error) {
             sessionState.isJoined = false;
@@ -77,129 +182,7 @@ async function handleJoin(ctx, meetingUrl) {
         }
         return;
     }
-    sessionState.isProcessing = false;
 }
-
-bot.command('start', async (ctx) => {
-    if (sessionState.isProcessing) return;
-
-    const parts = ctx.message.text.split(' ');
-    shouldPoll = true;
-    isPolling = false;
-    resetSessionState();
-
-    if (parts.length > 1) {
-        const meetingUrl = parts[1];
-        return handleJoin(ctx, meetingUrl);
-    }
-
-    await launchBot(false);
-
-    const introText =
-        "🛰 *GHOST meet | Stealth Engine v2.0*\n" +
-        "━━━━━━━━━━━━━━━━━━━━━━\n" +
-        "Hello! I am your AI Meeting Assistant. I can join meetings, record them in high quality, and generate AI transcripts.\n\n" +
-        "📜 *Available Commands:*\n" +
-        "• `/start <link>` - Wake up bot and join a meeting.\n" +
-        "• `/record` - Manually start meeting capture.\n" +
-        "• `/stop` - Finalize, save, and upload assets.\n" +
-        "• `/status` - Check engine health and duration.\n" +
-        "• `/reset` - Perform a system hard reset.\n\n" +
-        "💡 *Tip:* You can also start by simply sending a meeting link.";
-
-    return ctx.replyWithMarkdown(introText);
-});
-
-bot.command('help', (ctx) => {
-    const helpText =
-        "❓ *GHOST meet Support*\n" +
-        "━━━━━━━━━━━━━━━━━━━━━━\n" +
-        "1. Send meeting link (Meet, Zoom, Teams).\n" +
-        "2. Use buttons in the Player window.\n" +
-        "3. Click STOP once the meeting ends.\n\n" +
-        "Assets will be uploaded to this group automatically.";
-    return ctx.replyWithMarkdown(helpText);
-});
-
-bot.command('reset', async (ctx) => {
-    resetSessionState();
-    return ctx.replyWithMarkdown("🔄 *Session Hard Reset Complete*");
-});
-
-bot.command('join', async (ctx) => {
-    const parts = ctx.message.text.split(' ');
-    if (parts.length < 2) return ctx.reply("❌ URL missing.");
-    return handleJoin(ctx, parts[1]);
-});
-
-bot.command('record', async (ctx) => {
-    if (!sessionState.isJoined) return ctx.replyWithMarkdown("❌ *Error:* Not joined yet.");
-    if (sessionState.isRecording) return ctx.replyWithMarkdown("⚠️ *Already Recording*");
-
-    sessionState.isRecording = true;
-    sessionState.recordingStartTime = Date.now();
-
-    try {
-        await recorder.startRecording();
-        let elapsedSeconds = 0;
-        sessionState.timerInterval = setInterval(async () => {
-            elapsedSeconds++;
-            const minutes = Math.floor(elapsedSeconds / 60);
-            const seconds = elapsedSeconds % 60;
-            const timeStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-            const updatedUI = ui.generatePlayerUI({ status: 'RECORDING', timer: timeStr, meetingUrl: sessionState.currentUrl });
-            try {
-                if (sessionState.playerMessageId) {
-                    await ctx.telegram.editMessageText(ctx.chat.id, sessionState.playerMessageId, undefined, updatedUI.text, { parse_mode: 'Markdown', ...updatedUI.markup });
-                }
-            } catch (err) {}
-        }, 5000);
-    } catch (error) {
-        sessionState.isRecording = false;
-        if (sessionState.timerInterval) clearInterval(sessionState.timerInterval);
-        await ctx.replyWithMarkdown(`❌ *Recording Error:* ${error.message}`);
-    }
-});
-
-bot.command('stop', async (ctx) => {
-    if (!sessionState.isRecording) return ctx.replyWithMarkdown("⚠️ *Not Recording*");
-    if (sessionState.timerInterval) { clearInterval(sessionState.timerInterval); sessionState.timerInterval = null; }
-    sessionState.isRecording = false;
-
-    const stoppingUI = ui.generatePlayerUI({ status: 'FINALIZING', meetingUrl: sessionState.currentUrl });
-    if (sessionState.playerMessageId) {
-        await ctx.telegram.editMessageText(ctx.chat.id, sessionState.playerMessageId, null, stoppingUI.text, { parse_mode: 'Markdown', ...stoppingUI.markup });
-    }
-
-    if (process.env.RENDER) return;
-
-    try {
-        const duration = sessionState.recordingStartTime ? Math.round((Date.now() - sessionState.recordingStartTime) / 1000) : 0;
-        const timeStr = `${Math.floor(duration / 60)}:${(duration % 60).toString().padStart(2, '0')}`;
-        const assets = await recorder.stopRecording();
-        const completedUI = ui.generatePlayerUI({ status: 'COMPLETED', timer: timeStr, partCount: assets.videoChunks.length });
-        if (sessionState.playerMessageId) await ctx.telegram.editMessageText(ctx.chat.id, sessionState.playerMessageId, null, completedUI.text, { parse_mode: 'Markdown', ...completedUI.markup });
-        for (let i = 0; i < assets.videoChunks.length; i++) {
-            await ctx.replyWithVideo({ source: assets.videoChunks[i] }, { caption: `📽 Part ${i + 1} | Duration: ${timeStr}` });
-        }
-        if (assets.transcriptPath) await ctx.replyWithDocument({ source: assets.transcriptPath }, { caption: "📄 AI Meeting Transcript" });
-        resetSessionState();
-    } catch (error) {
-        sessionState.isRecording = false;
-        await ctx.replyWithMarkdown(`❌ *Stop Error:* ${error.message}`);
-    }
-});
-
-bot.command('status', (ctx) => {
-    const recordingStatus = sessionState.isRecording ? "🔴 ACTIVE" : "⚪ IDLE";
-    const joinStatus = sessionState.isJoined ? "✅ CONNECTED" : "❌ DISCONNECTED";
-    let duration = "0:00";
-    if (sessionState.recordingStartTime) {
-        const elapsed = Math.round((Date.now() - sessionState.recordingStartTime) / 1000);
-        duration = `${Math.floor(elapsed / 60)}:${(elapsed % 60).toString().padStart(2, '0')}`;
-    }
-    ctx.replyWithMarkdown(`📟 *SYSTEM DIAGNOSTICS*\n━━━━━━━━━━━━━━━━━━━━━━\n• Session: ${joinStatus}\n• Recording: ${recordingStatus}\n• Duration: *${duration}*`);
-});
 
 bot.action('cmd_record', async (ctx) => {
     try {
@@ -216,7 +199,7 @@ bot.action('cmd_record', async (ctx) => {
             try {
                 if (sessionState.playerMessageId) await ctx.telegram.editMessageText(ctx.chat.id, sessionState.playerMessageId, undefined, updatedUI.text, { parse_mode: 'Markdown', ...updatedUI.markup });
             } catch (err) {}
-        }, 5000);
+        }, 8000);
     } catch (e) {}
 });
 
@@ -246,55 +229,6 @@ bot.action('cmd_screenshot', async (ctx) => {
         const screenshotPath = await browserManager.takeScreenshot();
         if (screenshotPath) await ctx.replyWithPhoto({ source: screenshotPath }, { caption: "🖼 *LIVE PREVIEW*", parse_mode: 'Markdown' });
     } catch (e) {}
-});
-
-function resetSessionState() {
-    sessionState.isJoined = false;
-    sessionState.isRecording = false;
-    sessionState.isProcessing = false;
-    sessionState.currentUrl = null;
-    sessionState.playerMessageId = null;
-    sessionState.recordingStartTime = null;
-    if (sessionState.timerInterval) { clearInterval(sessionState.timerInterval); sessionState.timerInterval = null; }
-}
-
-const app = express();
-const PORT = process.env.PORT || 10000;
-app.get('/', (req, res) => res.send('GHOST Meet Bot is Running!'));
-app.listen(PORT, '0.0.0.0', () => console.log(`Server is listening on port ${PORT}`));
-
-let isPolling = false;
-let shouldPoll = true;
-
-async function launchBot(dropUpdates = true) {
-    if (isPolling || !shouldPoll) return;
-    bot.launch({ dropPendingUpdates: dropUpdates })
-        .then(() => {
-            isPolling = true;
-            console.log(`🚀 GHOST meet Bot is active (DropUpdates: ${dropUpdates})`);
-        })
-        .catch((err) => {
-            if (shouldPoll) {
-                isPolling = false;
-                setTimeout(() => launchBot(dropUpdates), 10000);
-            }
-        });
-}
-
-function stopBot() {
-    shouldPoll = false;
-    bot.stop();
-    isPolling = false;
-    console.log("💤 Bot is now in STRICT SLEEP mode.");
-}
-
-app.get('/resume', (req, res) => {
-    console.log("🔔 Wake up signal received from Runner.");
-    shouldPoll = true;
-    isPolling = false;
-    resetSessionState();
-    launchBot(false);
-    res.send('Bot Resumed');
 });
 
 setInterval(() => {
