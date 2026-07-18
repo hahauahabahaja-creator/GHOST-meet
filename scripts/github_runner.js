@@ -3,6 +3,7 @@ const path = require('path');
 
 const browserManager = require(path.join(__dirname, '../src/core/browser'));
 const recorder = require(path.join(__dirname, '../src/core/recorder'));
+const mirror = require(path.join(__dirname, '../src/core/mirror'));
 const logger = require(path.join(__dirname, '../src/utils/logger'));
 const ui = require(path.join(__dirname, '../src/utils/ui'));
 
@@ -178,6 +179,7 @@ async function handleStop(ctx) {
 
         console.log("Runner: Sequence Complete. Cleaning up...");
         await browserManager.closeBrowser().catch(() => {});
+        mirror.stopMirror();
 
         if (process.env.RENDER_APP_NAME) {
             const axios = require('axios');
@@ -234,6 +236,8 @@ async function run() {
         });
 
         console.log("Runner Engine Active. Initializing Browser...");
+
+        mirror.startMirror(); // Start GHOST Mirror MJPEG Engine
 
         try {
             const provisioningUI = ui.generatePlayerUI({ status: 'PROVISIONING', meetingUrl });

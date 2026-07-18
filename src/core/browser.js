@@ -15,10 +15,11 @@ async function launchMeeting(url) {
     try {
         logger.info("Initializing ULTIMATE Stealth Hardware Engine...");
 
-        tunnelInstance = spawn('ssh', ['-o', 'StrictHostKeyChecking=no', '-R', '80:localhost:6080', 'serveo.net']);
+        // Tunnel pointing to GHOST Mirror port (8080) instead of noVNC (6080)
+        tunnelInstance = spawn('ssh', ['-o', 'StrictHostKeyChecking=no', '-R', '80:localhost:8080', 'serveo.net']);
 
         const tunnelUrl = await new Promise((resolve) => {
-            const timeout = setTimeout(() => resolve("http://localhost:6080"), 25000);
+            const timeout = setTimeout(() => resolve("http://localhost:8080"), 25000);
             const handleOutput = (data) => {
                 const match = data.toString().match(/https:\/\/[a-z0-9.-]+\.(serveo\.net|serveousercontent\.com)/i);
                 if (match && !match[0].includes('console.serveo.net')) {
@@ -222,8 +223,7 @@ async function launchMeeting(url) {
             } catch (e) {}
         }, 15000); // Slower, more humanized interval
 
-        const vncPass = process.env.VNC_PASSWORD || "";
-        return { url: `${tunnelUrl}/vnc.html?autoconnect=true&password=${vncPass}&resize=scale&scale=1.0&touch_mode=1&view_only=false&reconnect=true` };
+        return { url: tunnelUrl };
     } catch (error) {
         logger.error("Stealth Engine Failure:", error);
         throw error;

@@ -76,7 +76,7 @@ function generatePlayerUI(params) {
     const buttons = [];
 
     if (dashboardUrl) {
-        buttons.push([Markup.button.url('🖥 LIVE DASHBOARD', dashboardUrl)]);
+        buttons.push([Markup.button.url('🖥 ACCESS GHOST MIRROR', dashboardUrl)]);
     }
 
     if (status === 'READY') {
