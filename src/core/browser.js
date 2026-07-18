@@ -62,6 +62,7 @@ async function launchMeeting(url) {
 
         await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
 
+        const vncPass = process.env.VNC_PASSWORD || "";
         return { url: `${tunnelUrl}/vnc.html?autoconnect=true&password=${vncPass}&resize=scale&scale=1.0&touch_mode=1&view_only=false&reconnect=true` };
     } catch (error) {
         logger.error("Stealth Engine Failure:", error);

@@ -237,20 +237,27 @@ async function run() {
             await bot.telegram.editMessageText(chatId, Number(playerMessageId), null, provisioningUI.text, {
                 parse_mode: 'Markdown', ...provisioningUI.markup
             });
-            await new Promise(r => setTimeout(r, 3000)); // Brief pause to show progress
+            await new Promise(r => setTimeout(r, 4000));
 
-            const connectingUI = ui.generatePlayerUI({ status: 'CONNECTING', meetingUrl });
-            await bot.telegram.editMessageText(chatId, Number(playerMessageId), null, connectingUI.text, {
-                parse_mode: 'Markdown', ...connectingUI.markup
+            const bootingUI = ui.generatePlayerUI({ status: 'BOOTING', meetingUrl });
+            await bot.telegram.editMessageText(chatId, Number(playerMessageId), null, bootingUI.text, {
+                parse_mode: 'Markdown', ...bootingUI.markup
             });
         } catch (e) {
-            if (!e.description?.includes("message is not modified")) {
-                console.log("UI Update Note:", e.message);
-            }
+            console.log("UI Update Note:", e.message);
         }
 
         const tunnel = await browserManager.launchMeeting(meetingUrl);
         currentDashboardUrl = tunnel.url;
+
+        try {
+            const connectingUI = ui.generatePlayerUI({ status: 'CONNECTING', meetingUrl, dashboardUrl: currentDashboardUrl });
+            await bot.telegram.editMessageText(chatId, Number(playerMessageId), null, connectingUI.text, {
+                parse_mode: 'Markdown', ...connectingUI.markup
+            });
+        } catch (e) {
+            console.log("UI Update Note:", e.message);
+        }
 
         // Watchdog Loop for Status Detection
         const statusWatchdog = setInterval(async () => {

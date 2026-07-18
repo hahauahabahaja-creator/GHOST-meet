@@ -4,6 +4,7 @@ const STATUS_ICONS = {
     INITIALIZING: '⏳',
     DEPLOYING: '🚀',
     PROVISIONING: '⚙️',
+    BOOTING: '🛰',
     CONNECTING: '🌀',
     WAITING: '⚠️',
     READY: '✅',
@@ -26,7 +27,9 @@ function generatePlayerUI(params) {
 
     if (dashboardUrl) {
         uiText += `🔗 *Control:* [ACCESS DASHBOARD](${dashboardUrl})\n`;
-    } else if (meetingUrl) {
+    }
+
+    if (meetingUrl) {
         uiText += `📍 *Target:* [MEETING ROOM](${meetingUrl})\n`;
     }
 
@@ -42,6 +45,9 @@ function generatePlayerUI(params) {
     } else if (status === 'PROVISIONING') {
         uiText += `📊 *Deployment:* ${getProgressBar(45)}\n`;
         uiText += `⏳ *ETA:* \`~1 min\` (Environment readying...)`;
+    } else if (status === 'BOOTING') {
+        uiText += `📊 *Connection:* ${getProgressBar(60)}\n`;
+        uiText += `🛰 *Status:* Booting Stealth Chrome...`;
     } else if (status === 'CONNECTING') {
         uiText += `📊 *Connection:* ${getProgressBar(70)}\n`;
         uiText += `📡 *Status:* Initializing browser...`;
@@ -68,6 +74,11 @@ function generatePlayerUI(params) {
     }
 
     const buttons = [];
+
+    if (dashboardUrl) {
+        buttons.push([Markup.button.url('🖥 LIVE DASHBOARD', dashboardUrl)]);
+    }
+
     if (status === 'READY') {
         buttons.push([Markup.button.callback('⏺ START CAPTURE', 'cmd_record')]);
     } else if (status === 'RECORDING') {
