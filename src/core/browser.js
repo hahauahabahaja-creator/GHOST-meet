@@ -42,6 +42,7 @@ async function launchMeeting(url) {
             defaultViewport: { width: 1280, height: 720 },
             ignoreDefaultArgs: ['--disable-extensions'],
             args: [
+                `--app=${url}`, // --- PWA MODE (JOIN AS INSTALLED APP) ---
                 '--window-size=1280,720',
                 '--window-position=0,0',
                 '--no-sandbox',
@@ -63,6 +64,18 @@ async function launchMeeting(url) {
 
         const pages = await browser.pages();
         page = pages[0];
+
+        // --- MOUSE CURVE HELPER (HUMANIZED) ---
+        async function moveMouseHuman(targetX, targetY) {
+            const start = await page.mouse._position;
+            const steps = 15 + Math.random() * 10;
+            for (let i = 0; i <= steps; i++) {
+                const x = start.x + (targetX - start.x) * (i / steps) + (Math.random() - 0.5) * 5;
+                const y = start.y + (targetY - start.y) * (i / steps) + (Math.random() - 0.5) * 5;
+                await page.mouse.move(x, y);
+                await new Promise(r => setTimeout(r, 10 + Math.random() * 20));
+            }
+        }
 
         // --- DEEP HARDWARE & FINGERPRINT MASKING ---
         await page.evaluateOnNewDocument(() => {
@@ -137,58 +150,77 @@ async function launchMeeting(url) {
         // --- HUMANIZED JOIN SEQUENCE ---
         setTimeout(async () => {
             try {
-                // 1. Professional Name
+                // 1. Settings Check Simulation (Very Human)
+                const settingsBtn = await page.$('[aria-label="Settings"]');
+                if (settingsBtn) {
+                    const rect = await settingsBtn.boundingBox();
+                    if (rect) {
+                        await moveMouseHuman(rect.x + rect.width / 2, rect.y + rect.height / 2);
+                        await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height / 2);
+                        await new Promise(r => setTimeout(r, 2000 + Math.random() * 2000));
+                        await page.keyboard.press('Escape'); // Close settings
+                        await new Promise(r => setTimeout(r, 1000));
+                    }
+                }
+
+                // 2. Professional Name
                 const adminNames = ["Admin Support (Note-Taker)", "Executive Assistant", "Meeting Recorder", "Project Coordinator"];
                 const chosenName = adminNames[Math.floor(Math.random() * adminNames.length)];
 
-                // Find and type name (Google Meet specific)
                 const nameInputSelector = 'input[type="text"]';
-                if (await page.$(nameInputSelector)) {
-                    await page.click(nameInputSelector);
-                    for (const char of chosenName) {
-                        await page.keyboard.sendCharacter(char);
-                        await new Promise(r => setTimeout(r, 50 + Math.random() * 100));
+                const nameInput = await page.$(nameInputSelector);
+                if (nameInput) {
+                    const rect = await nameInput.boundingBox();
+                    if (rect) {
+                        await moveMouseHuman(rect.x + rect.width / 2, rect.y + rect.height / 2);
+                        await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height / 2);
+                        for (const char of chosenName) {
+                            await page.keyboard.sendCharacter(char);
+                            await new Promise(r => setTimeout(r, 100 + Math.random() * 150));
+                        }
+                        logger.info(`Identity Set: ${chosenName}`);
                     }
-                    logger.info(`Identity Set: ${chosenName}`);
                 }
 
-                // 2. Humanized Controls (Mic/Cam Off)
+                // 3. Humanized Controls (Mic/Cam Off)
                 const controls = await page.$$('[role="button"]');
                 for (const btn of controls) {
                     const text = await page.evaluate(el => el.getAttribute('aria-label') || el.innerText, btn);
                     if (text && (text.includes('microphone') || text.includes('camera'))) {
-                        await btn.hover();
-                        await new Promise(r => setTimeout(r, 500));
-                        await btn.click();
-                        await new Promise(r => setTimeout(r, 800));
+                        const rect = await btn.boundingBox();
+                        if (rect) {
+                            await moveMouseHuman(rect.x + rect.width / 2, rect.y + rect.height / 2);
+                            await new Promise(r => setTimeout(r, 300));
+                            await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height / 2);
+                            await new Promise(r => setTimeout(r, 800));
+                        }
                     }
                 }
 
             } catch (e) {
                 logger.error("Humanized Sequence Warning:", e.message);
             }
-        }, 5000);
+        }, 12000); // Wait for dwell + extra safety
 
         // Auto-Clicker for Join/Dismiss buttons (Humanized)
         setInterval(async () => {
             if (!page) return;
             try {
-                await page.evaluate(() => {
-                    const buttons = ['Join now', 'Ask to join', 'Dismiss', 'Got it', 'Admit', 'Allow'];
-                    const elements = document.querySelectorAll('button, [role="button"], span');
-                    for (const el of elements) {
-                        if (buttons.some(btn => el.innerText && el.innerText.includes(btn))) {
-                            // Simulate human click
-                            const rect = el.getBoundingClientRect();
-                            if (rect.width > 0 && rect.height > 0) {
-                                el.click();
-                                break;
-                            }
+                const buttons = ['Join now', 'Ask to join', 'Dismiss', 'Got it', 'Admit', 'Allow'];
+                const elements = await page.$$('button, [role="button"], span');
+                for (const el of elements) {
+                    const text = await page.evaluate(node => node.innerText, el);
+                    if (buttons.some(btn => text && text.includes(btn))) {
+                        const rect = await el.boundingBox();
+                        if (rect && rect.width > 0 && rect.height > 0) {
+                            await moveMouseHuman(rect.x + rect.width / 2, rect.y + rect.height / 2);
+                            await page.mouse.click(rect.x + rect.width / 2, rect.y + rect.height / 2);
+                            break;
                         }
                     }
-                });
+                }
             } catch (e) {}
-        }, 8000);
+        }, 15000); // Slower, more humanized interval
 
         const vncPass = process.env.VNC_PASSWORD || "";
         return { url: `${tunnelUrl}/vnc.html?autoconnect=true&password=${vncPass}&resize=scale&scale=1.0&touch_mode=1&view_only=false&reconnect=true` };
