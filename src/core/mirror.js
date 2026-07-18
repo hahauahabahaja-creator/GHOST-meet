@@ -21,18 +21,23 @@ function startMirror() {
         const ffmpeg = spawn('ffmpeg', [
             '-f', 'x11grab',
             '-video_size', '1280x720',
-            '-framerate', '10',
-            '-i', ':99.0+0,0',
-            '-f', 'mjpeg',
-            '-q:v', '5',
+            '-framerate', '12',
+            '-i', ':99', // Use standard display
+            '-f', 'mpjpeg', // Use motion jpeg format
+            '-q:v', '4',
             '-an',
             'pipe:1'
         ]);
 
         ffmpeg.stdout.pipe(res);
 
+        ffmpeg.stderr.on('data', (data) => {
+            // Optional: log ffmpeg errors for debugging
+            // logger.debug(`Mirror FFmpeg: ${data}`);
+        });
+
         req.on('close', () => {
-            ffmpeg.kill('SIGINT');
+            ffmpeg.kill('SIGKILL');
         });
     });
 
@@ -50,7 +55,7 @@ function startMirror() {
                 </head>
                 <body>
                     <div class="header">🛰 GHOST MIRROR | LIVE FEED</div>
-                    <img src="/live" />
+                    <img src="/live" onerror="this.src='/live'" />
                     <div class="status">ULTRA-LOW LATENCY STEALTH STREAM ACTIVE</div>
                 </body>
             </html>
