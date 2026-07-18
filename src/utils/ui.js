@@ -3,6 +3,7 @@ const { Markup } = require('telegraf');
 const STATUS_ICONS = {
     INITIALIZING: '⏳',
     DEPLOYING: '🚀',
+    PROVISIONING: '⚙️',
     CONNECTING: '🌀',
     WAITING: '⚠️',
     READY: '✅',
@@ -34,12 +35,18 @@ function generatePlayerUI(params) {
     }
 
     if (progress !== undefined) {
-        uiText += `📊 *Processing:* ${getProgressBar(progress)}\n`;
+        uiText += `📊 *Progress:* ${getProgressBar(progress)}\n`;
     } else if (status === 'DEPLOYING') {
-        uiText += `📊 *Deployment:* ${getProgressBar(30)}\n`;
-        uiText += `⏳ *ETA:* \`~2 mins\` (Spinning up cloud runner)`;
-    } else if (status === 'CONNECTING' || status === 'WAITING') {
+        uiText += `📊 *Deployment:* ${getProgressBar(20)}\n`;
+        uiText += `⏳ *ETA:* \`~2 mins\` (Cloud startup...)`;
+    } else if (status === 'PROVISIONING') {
+        uiText += `📊 *Deployment:* ${getProgressBar(45)}\n`;
+        uiText += `⏳ *ETA:* \`~1 min\` (Environment readying...)`;
+    } else if (status === 'CONNECTING') {
         uiText += `📊 *Connection:* ${getProgressBar(70)}\n`;
+        uiText += `📡 *Status:* Initializing browser...`;
+    } else if (status === 'WAITING') {
+        uiText += `📊 *Connection:* ${getProgressBar(85)}\n`;
     }
 
     if (partCount) {

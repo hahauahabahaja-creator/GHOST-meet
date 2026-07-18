@@ -199,7 +199,6 @@ async function handleStop(ctx) {
         process.exit(1);
     }
 }
-}
 
 async function run() {
     try {
@@ -234,6 +233,12 @@ async function run() {
         console.log("Runner Engine Active. Initializing Browser...");
 
         try {
+            const provisioningUI = ui.generatePlayerUI({ status: 'PROVISIONING', meetingUrl });
+            await bot.telegram.editMessageText(chatId, Number(playerMessageId), null, provisioningUI.text, {
+                parse_mode: 'Markdown', ...provisioningUI.markup
+            });
+            await new Promise(r => setTimeout(r, 3000)); // Brief pause to show progress
+
             const connectingUI = ui.generatePlayerUI({ status: 'CONNECTING', meetingUrl });
             await bot.telegram.editMessageText(chatId, Number(playerMessageId), null, connectingUI.text, {
                 parse_mode: 'Markdown', ...connectingUI.markup
