@@ -21,7 +21,7 @@ async function launchMeeting(url) {
         const tunnelUrl = await new Promise((resolve) => {
             const timeout = setTimeout(() => resolve("http://localhost:6080"), 25000);
             const handleOutput = (data) => {
-                const match = data.toString().match(/https:\/\/[a-z0-9.-]+\.(serveo\.net|serveousercontent\.com)/i);
+                 const match = data.toString().match(/https:\/\/[a-z0-9.-]+\.(serveo\.net|serveousercontent\.com)/i);
                 if (match && !match[0].includes('console.serveo.net')) {
                     clearTimeout(timeout);
                     resolve(match[0]);
@@ -44,7 +44,6 @@ async function launchMeeting(url) {
             // CRITICAL: ignoreDefaultArgs removes the "controlled by automated software" bar
             ignoreDefaultArgs: ['--enable-automation'],
             args: [
-                `--app=${url}`, // Join as installed app
                 '--window-size=1280,720',
                 '--window-position=0,0',
                 '--no-sandbox',
@@ -66,56 +65,50 @@ async function launchMeeting(url) {
         const pages = await browser.pages();
         page = pages[0];
 
-        // --- MOUSE CURVE HELPER (HUMANIZED) ---
-        async function moveMouseHuman(targetX, targetY) {
-            const start = await page.mouse._position;
-            const steps = 15 + Math.random() * 10;
-            for (let i = 0; i <= steps; i++) {
-                const x = start.x + (targetX - start.x) * (i / steps) + (Math.random() - 0.5) * 5;
-                const y = start.y + (targetY - start.y) * (i / steps) + (Math.random() - 0.5) * 5;
-                await page.mouse.move(x, y);
-                await new Promise(r => setTimeout(r, 10 + Math.random() * 20));
-            }
-        }
-
         // --- DEEP HARDWARE & FINGERPRINT MASKING ---
         await page.evaluateOnNewDocument(() => {
-            // 1. Spoof WebGL (GPU)
+            // 1. Spoof WebGL (Deep Hardening)
             const getParameter = HTMLCanvasElement.prototype.getContext;
             HTMLCanvasElement.prototype.getContext = function(type, attributes) {
                 const context = getParameter.apply(this, [type, attributes]);
                 if (type === 'webgl' || type === 'experimental-webgl' || type === 'webgl2') {
                     const originalGetParameter = context.getParameter;
                     context.getParameter = function(param) {
-                        if (param === 37445) return 'NVIDIA Corporation'; // UNMASKED_VENDOR_WEBGL
-                        if (param === 37446) return 'NVIDIA GeForce RTX 3060/PCIe/SSE2'; // UNMASKED_RENDERER_WEBGL
+                        // UNMASKED_VENDOR_WEBGL
+                        if (param === 37445) return 'NVIDIA Corporation';
+                        // UNMASKED_RENDERER_WEBGL
+                        if (param === 37446) return 'NVIDIA GeForce RTX 3060/PCIe/SSE2';
+                        // SHADING_LANGUAGE_VERSION
+                        if (param === 35724) return 'WebGL GLSL ES 3.00 (OpenGL ES GLSL ES 3.0 Chromium)';
+                        // VENDOR
+                        if (param === 7936) return 'WebKit';
+                        // RENDERER
+                        if (param === 7937) return 'WebKit WebGL';
                         return originalGetParameter.apply(this, [param]);
                     };
                 }
                 return context;
             };
 
-            // 2. Spoof CPU & RAM
-            Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
-            Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
-
-            // 3. Spoof OS/Platform
-            Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
-
-            // 4. Spoof Battery
-            navigator.getBattery = () => Promise.resolve({
-                level: 0.85,
-                charging: true,
-                chargingTime: 0,
-                dischargingTime: Infinity,
-                onlevelchange: null,
-                onchargingchange: null
+            // 2. Spoof Plugins (Real Windows Installation)
+            Object.defineProperty(navigator, 'plugins', {
+                get: () => [
+                    { name: 'Chrome PDF Viewer', filename: 'internal-pdf-viewer', description: 'Portable Document Format' },
+                    { name: 'Chrome PDF Viewer', filename: 'mhjfbmdpjiidxgeanbdnechoieccdgkl', description: '' },
+                    { name: 'Native Client', filename: 'internal-nacl-plugin', description: '' }
+                ]
             });
 
-            // 5. Mask Automation & Webdriver
+            // 3. CDP & Webdriver Protection
             Object.defineProperty(navigator, 'webdriver', { get: () => false });
+            window.chrome = { runtime: {} };
 
-            // 6. Canvas Fingerprint Protection (Add slight noise)
+            // 4. Spoof CPU & RAM
+            Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
+            Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
+            Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
+
+            // 5. Canvas & Audio Protection
             const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
             HTMLCanvasElement.prototype.toDataURL = function(type) {
                 const context = this.getContext('2d');
@@ -126,7 +119,6 @@ async function launchMeeting(url) {
                 return originalToDataURL.apply(this, arguments);
             };
 
-            // 7. Audio Fingerprint Protection
             const originalGetChannelData = AudioBuffer.prototype.getChannelData;
             AudioBuffer.prototype.getChannelData = function() {
                 const data = originalGetChannelData.apply(this, arguments);
@@ -139,11 +131,15 @@ async function launchMeeting(url) {
 
         await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
 
-        logger.info(`🚀 Navigating to: ${url}`);
+        // --- SESSION WARMING (Anti-Ban Step) ---
+        logger.info("Stealth: Warming up session (Visiting Google)...");
+        await page.goto('https://www.google.com/search?q=latest+news', { waitUntil: 'networkidle2' });
+        await new Promise(r => setTimeout(r, 3000));
+
+        logger.info(`🚀 Navigating to Target: ${url}`);
 
         // --- HUMANIZED DELAY ---
-        const dwellTime = 5000 + Math.random() * 7000;
-        logger.info(`Stealth: Dwelling for ${Math.round(dwellTime/1000)}s before navigation...`);
+        const dwellTime = 4000 + Math.random() * 5000;
         await new Promise(r => setTimeout(r, dwellTime));
 
         await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
