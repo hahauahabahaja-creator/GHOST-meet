@@ -125,9 +125,10 @@ function registerHandlers() {
             "Welcome, Operator. I am your high-performance AI Meeting Assistant, specialized in stealth capture, high-fidelity recording, and multi-language transcription.\n\n" +
             "🛡 *Core Capabilities:*\n" +
             "• *Stealth Entry:* Joins meetings without being detected.\n" +
+            "• *Session Injector:* Send cookie JSON to login instantly.\n" +
+            "• *Proxy Tunnel:* Uses Residential IPs to bypass bans.\n" +
             "• *HD Capture:* Records 720p/1080p video with internal audio.\n" +
-            "• *AI Transcription:* Generates precise Hinglish transcripts.\n" +
-            "• *Auto-Handoff:* Scalable cloud architecture for 24/7 uptime.\n\n" +
+            "• *AI Transcription:* Generates precise Hinglish transcripts.\n\n" +
             "📜 *System Commands:*\n" +
             "• /start - Initialize the engine.\n" +
             "• /status - Check system health & diagnostics.\n" +
@@ -143,14 +144,14 @@ function registerHandlers() {
         const helpText =
             "📖 *GHOST meet | Operation Manual*\n" +
             "━━━━━━━━━━━━━━━━━━━━━━\n" +
-            "1️⃣ *Initiation:* Send a valid meeting link (Google Meet, Zoom, Teams).\n" +
-            "2️⃣ *Deployment:* I will deploy a stealth runner to join the meeting.\n" +
-            "3️⃣ *Control:* Use the Live Dashboard link provided to control the browser.\n" +
-            "4️⃣ *Finalization:* Use the 🛑 STOP button in the player to save the recording.\n\n" +
+            "1️⃣ *Initiation:* Send a meeting link to start.\n" +
+            "2️⃣ *Login (Optional):* To join as a real user, send your session cookies as a JSON array (e.g. `[{\"name\":...}]`) while the bot is connecting.\n" +
+            "3️⃣ *Control:* Use the Live Dashboard link to manually change tabs or settings.\n" +
+            "4️⃣ *Finalization:* Use 🛑 STOP button to save.\n\n" +
             "🛠 *Maintenance Commands:*\n" +
-            "• /status - Check if the engine is busy or idle.\n" +
-            "• /reset - Emergency Hard Reset. Use this if the bot is stuck or not responding.\n\n" +
-            "⚠️ *Note:* Only one session can be active at a time.";
+            "• /status - Check system health & proxy status.\n" +
+            "• /reset - Emergency Hard Reset.\n\n" +
+            "💡 *Tip:* Use 'EditThisCookie' extension to get your session JSON.";
         const msg = await ctx.replyWithMarkdown(helpText);
         sessionState.cleanupQueue.push(msg.message_id);
         return;
@@ -180,9 +181,9 @@ function registerHandlers() {
             `🆔 *Instance:* \`${INSTANCE_ID}\`\n` +
             `⏱ *Uptime:* \`${uptimeStr}\`\n` +
             `📡 *Engine:* ${engineStatus}\n` +
+            `🌐 *Proxy:* ${process.env.PROXY_URL ? "🔒 TUNNEL ACTIVE" : "🔓 DIRECT"}\n` +
             `🔗 *Session:* ${joinStatus}\n` +
             `⏺ *Capture:* ${recordingStatus}\n` +
-            `🔄 *Handoff:* ${sessionState.handoffActive ? "🟠 ACTIVE" : "🟢 INACTIVE"}\n` +
             `━━━━━━━━━━━━━━━━━━━━━━\n` +
             `✨ *System is running optimally.*`;
 

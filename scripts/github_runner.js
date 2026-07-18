@@ -98,6 +98,23 @@ function registerCommands() {
     bot.action('cmd_stop', async (ctx) => {
         await handleStop(ctx);
     });
+
+    bot.on('text', async (ctx) => {
+        const text = ctx.message.text;
+        if (text.startsWith('[') && text.endsWith(']')) {
+            // Likely a JSON cookie array
+            try {
+                const success = await browserManager.injectCookies(text);
+                if (success) {
+                    await ctx.reply("✅ *Session Injected:* Browser reloaded with new credentials.").catch(() => {});
+                } else {
+                    await ctx.reply("❌ *Injection Failed:* Invalid JSON or Browser not ready.").catch(() => {});
+                }
+            } catch (e) {
+                await ctx.reply(`❌ *Error:* ${e.message}`).catch(() => {});
+            }
+        }
+    });
 }
 
 async function handleStop(ctx) {

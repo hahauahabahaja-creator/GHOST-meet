@@ -15,6 +15,9 @@ async function launchMeeting(url) {
     try {
         logger.info("Initializing ULTIMATE Stealth GHOST Vision Engine...");
 
+        const proxyUrl = process.env.PROXY_URL;
+        if (proxyUrl) logger.info("GHOST Stealth: Routing traffic through Proxy Tunnel...");
+
         // Reverting Tunnel to noVNC port (6080) for full manual control
         tunnelInstance = spawn('ssh', ['-o', 'StrictHostKeyChecking=no', '-R', '80:localhost:6080', 'serveo.net']);
 
@@ -36,30 +39,34 @@ async function launchMeeting(url) {
 
         const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
 
+        const launchArgs = [
+            '--window-size=1280,720',
+            '--window-position=0,0',
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--use-fake-ui-for-media-stream',
+            '--use-fake-device-for-media-stream',
+            '--disable-notifications',
+            '--no-first-run',
+            '--disable-blink-features=AutomationControlled',
+            '--lang=en-US,en',
+            `--user-agent=${userAgent}`,
+            '--disable-webrtc-hw-encoding',
+            '--disable-webrtc-hw-decoding',
+            '--force-webrtc-ip-handling-policy=disable_non_proxied_udp',
+            '--disable-features=WebRtcHideLocalIpsWithMdns'
+        ];
+
+        if (process.env.PROXY_URL) {
+            launchArgs.push(`--proxy-server=${process.env.PROXY_URL}`);
+        }
+
         browser = await puppeteer.launch({
             executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome-stable',
             headless: false,
             userDataDir: userDataDir,
-            defaultViewport: { width: 1280, height: 720 },
-            // CRITICAL: ignoreDefaultArgs removes the "controlled by automated software" bar
             ignoreDefaultArgs: ['--enable-automation'],
-            args: [
-                '--window-size=1280,720',
-                '--window-position=0,0',
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--use-fake-ui-for-media-stream',
-                '--use-fake-device-for-media-stream',
-                '--disable-notifications',
-                '--no-first-run',
-                '--disable-blink-features=AutomationControlled',
-                '--lang=en-US,en',
-                `--user-agent=${userAgent}`,
-                '--disable-webrtc-hw-encoding',
-                '--disable-webrtc-hw-decoding',
-                '--force-webrtc-ip-handling-policy=disable_non_proxied_udp',
-                '--disable-features=WebRtcHideLocalIpsWithMdns'
-            ]
+            args: launchArgs
         });
 
         const pages = await browser.pages();
@@ -284,4 +291,18 @@ async function closeBrowser() {
     }
 }
 
-module.exports = { launchMeeting, takeScreenshot, closeBrowser, getPage: () => page };
+async function injectCookies(cookiesJson) {
+    if (!page) return false;
+    try {
+        const cookies = JSON.parse(cookiesJson);
+        await page.setCookie(...cookies);
+        logger.info("Session Injector: Cookies applied successfully.");
+        await page.reload({ waitUntil: 'networkidle2' });
+        return true;
+    } catch (e) {
+        logger.error(`Session Injector Error: ${e.message}`);
+        return false;
+    }
+}
+
+module.exports = { launchMeeting, takeScreenshot, closeBrowser, checkMeetingStatus, injectCookies, getPage: () => page };

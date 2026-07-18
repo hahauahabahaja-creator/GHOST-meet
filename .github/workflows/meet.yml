@@ -82,6 +82,7 @@ jobs:
           MEETING_URL: ${{ github.event.client_payload.meeting_url }}
           PLAYER_MESSAGE_ID: ${{ github.event.client_payload.player_message_id }}
           CHAT_ID: ${{ github.event.client_payload.chat_id }}
+          PROXY_URL: ${{ github.event.client_payload.proxy_url }}
           VNC_PASSWORD: ${{ secrets.VNC_PASSWORD }}
           RENDER_APP_NAME: ${{ secrets.RENDER_APP_NAME }}
           DISPLAY: :99

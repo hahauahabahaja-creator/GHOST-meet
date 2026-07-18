@@ -31,14 +31,14 @@ async function triggerRunner(meetingUrl, playerMessageId, chatId) {
     try {
         logger.info(`Triggering GitHub Runner for: ${meetingUrl}`);
 
+        const payload = {
+            meeting_url: meetingUrl,
+            player_message_id: playerMessageId,
+            chat_id: chatId,
+            proxy_url: process.env.PROXY_URL
+        };
+
         await axios.post(url, {
-            event_type: 'start_ghost_runner',
-            client_payload: {
-                meeting_url: meetingUrl,
-                player_message_id: playerMessageId,
-                chat_id: chatId
-            }
-        }, {
             headers: {
                 'Authorization': `token ${PAT_TOKEN}`,
                 'Accept': 'application/vnd.github.v3+json'
