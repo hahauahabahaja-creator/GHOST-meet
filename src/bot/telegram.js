@@ -5,7 +5,6 @@ const path = require('path');
 const browserManager = require('../core/browser');
 const recorder = require('../core/recorder');
 const github = require('../utils/github');
-const livekit = require('../utils/livekit');
 const logger = require('../utils/logger');
 const ui = require('../utils/ui');
 
@@ -294,10 +293,7 @@ async function handleJoin(ctx, meetingUrl) {
 
     console.log(`🚀 [JOIN] Triggering workflow for: ${meetingUrl}`);
 
-    const roomName = `room_${Math.random().toString(36).substring(2, 10)}`;
-    const dashboardUrl = livekit.generateDashboardLink(roomName, 'Operator');
-
-    const player = ui.generatePlayerUI({ status: 'INITIALIZING', meetingUrl, dashboardUrl });
+    const player = ui.generatePlayerUI({ status: 'INITIALIZING', meetingUrl });
     const msg = await ctx.replyWithMarkdown(player.text, player.markup);
     sessionState.playerMessageId = msg.message_id;
 

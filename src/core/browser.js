@@ -52,14 +52,19 @@ async function launchMeeting(url) {
                 '--no-first-run',
                 '--disable-blink-features=AutomationControlled',
                 '--lang=en-US,en',
-                `--user-agent=${userAgent}`
+                `--user-agent=${userAgent}`,
+                // --- ANTI-RISK WEBRTC BLOCKING ---
+                '--disable-webrtc-hw-encoding',
+                '--disable-webrtc-hw-decoding',
+                '--force-webrtc-ip-handling-policy=disable_non_proxied_udp',
+                '--disable-features=WebRtcHideLocalIpsWithMdns'
             ]
         });
 
         const pages = await browser.pages();
         page = pages[0];
 
-        // --- DEEP HARDWARE MASKING ---
+        // --- DEEP HARDWARE & FINGERPRINT MASKING ---
         await page.evaluateOnNewDocument(() => {
             // 1. Spoof WebGL (GPU)
             const getParameter = HTMLCanvasElement.prototype.getContext;
@@ -93,13 +98,40 @@ async function launchMeeting(url) {
                 onchargingchange: null
             });
 
-            // 5. Mask Automation
+            // 5. Mask Automation & Webdriver
             Object.defineProperty(navigator, 'webdriver', { get: () => false });
+
+            // 6. Canvas Fingerprint Protection (Add slight noise)
+            const originalToDataURL = HTMLCanvasElement.prototype.toDataURL;
+            HTMLCanvasElement.prototype.toDataURL = function(type) {
+                const context = this.getContext('2d');
+                if (context) {
+                    context.fillStyle = 'rgba(0,0,0,0.01)';
+                    context.fillRect(0, 0, 1, 1);
+                }
+                return originalToDataURL.apply(this, arguments);
+            };
+
+            // 7. Audio Fingerprint Protection
+            const originalGetChannelData = AudioBuffer.prototype.getChannelData;
+            AudioBuffer.prototype.getChannelData = function() {
+                const data = originalGetChannelData.apply(this, arguments);
+                if (data && data.length > 10) {
+                    for (let i = 0; i < 10; i++) data[i] += Math.random() * 0.0001;
+                }
+                return data;
+            };
         });
 
         await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
 
         logger.info(`🚀 Navigating to: ${url}`);
+
+        // --- HUMANIZED DELAY ---
+        const dwellTime = 5000 + Math.random() * 7000;
+        logger.info(`Stealth: Dwelling for ${Math.round(dwellTime/1000)}s before navigation...`);
+        await new Promise(r => setTimeout(r, dwellTime));
+
         await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
 
         // --- HUMANIZED JOIN SEQUENCE ---

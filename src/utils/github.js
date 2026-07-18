@@ -31,19 +31,13 @@ async function triggerRunner(meetingUrl, playerMessageId, chatId) {
     try {
         logger.info(`Triggering GitHub Runner for: ${meetingUrl}`);
 
-        const payload = {
-            meeting_url: meetingUrl,
-            player_message_id: playerMessageId,
-            chat_id: chatId,
-            // Securely pass LiveKit credentials from Render to GitHub
-            livekit_url: process.env.LIVEKIT_URL,
-            livekit_api_key: process.env.LIVEKIT_API_KEY,
-            livekit_api_secret: process.env.LIVEKIT_API_SECRET
-        };
-
         await axios.post(url, {
             event_type: 'start_ghost_runner',
-            client_payload: payload
+            client_payload: {
+                meeting_url: meetingUrl,
+                player_message_id: playerMessageId,
+                chat_id: chatId
+            }
         }, {
             headers: {
                 'Authorization': `token ${PAT_TOKEN}`,

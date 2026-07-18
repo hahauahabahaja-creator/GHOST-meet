@@ -8,9 +8,9 @@ const ui = require(path.join(__dirname, '../src/utils/ui'));
 
 const bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 let meetingUrl = process.env.MEETING_URL;
-
-// Ensure LiveKit credentials from payload are set in process.env
-if (process.env.LIVEKIT_URL) console.log("LiveKit Integration: Active");
+if (meetingUrl && !meetingUrl.startsWith('http')) {
+    meetingUrl = `https://${meetingUrl}`;
+}
 if (meetingUrl && !meetingUrl.startsWith('http')) {
     meetingUrl = `https://${meetingUrl}`;
 }
