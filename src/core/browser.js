@@ -62,6 +62,28 @@ async function launchMeeting(url) {
 
         await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
 
+        logger.info(`🚀 Navigating to: ${url}`);
+        await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
+
+        // Auto-Clicker for Join/Dismiss buttons
+        setInterval(async () => {
+            if (!page) return;
+            try {
+                await page.evaluate(() => {
+                    const buttons = [
+                        'Join now', 'Ask to join', 'Dismiss', 'Got it',
+                        'Join meeting', 'Admit', 'Allow'
+                    ];
+                    const elements = document.querySelectorAll('button, [role="button"], span');
+                    elements.forEach(el => {
+                        if (buttons.some(btn => el.innerText && el.innerText.includes(btn))) {
+                            el.click();
+                        }
+                    });
+                });
+            } catch (e) {}
+        }, 5000);
+
         const vncPass = process.env.VNC_PASSWORD || "";
         return { url: `${tunnelUrl}/vnc.html?autoconnect=true&password=${vncPass}&resize=scale&scale=1.0&touch_mode=1&view_only=false&reconnect=true` };
     } catch (error) {

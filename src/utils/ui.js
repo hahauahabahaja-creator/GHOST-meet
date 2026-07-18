@@ -86,8 +86,11 @@ function generatePlayerUI(params) {
             Markup.button.callback('📸 SCREENSHOT', 'cmd_screenshot'),
             Markup.button.callback('🛑 STOP & SAVE', 'cmd_stop')
         ]);
-    } else if (status === 'DEPLOYING' || status === 'INITIALIZING' || status === 'CONNECTING' || status === 'WAITING') {
-        buttons.push([Markup.button.callback('❌ CANCEL DEPLOYMENT', 'cmd_cancel')]);
+    } else if (status === 'DEPLOYING' || status === 'INITIALIZING' || status === 'CONNECTING' || status === 'WAITING' || status === 'BOOTING' || status === 'PROVISIONING') {
+        buttons.push([
+            Markup.button.callback('⏺ FORCE START', 'cmd_record'),
+            Markup.button.callback('❌ CANCEL DEPLOYMENT', 'cmd_cancel')
+        ]);
     }
 
     return {
