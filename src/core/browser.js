@@ -13,13 +13,13 @@ let tunnelInstance = null;
 
 async function launchMeeting(url) {
     try {
-        logger.info("Initializing ULTIMATE Stealth Hardware Engine...");
+        logger.info("Initializing ULTIMATE Stealth GHOST Vision Engine...");
 
-        // Tunnel pointing to GHOST Mirror port (8080) instead of noVNC (6080)
-        tunnelInstance = spawn('ssh', ['-o', 'StrictHostKeyChecking=no', '-R', '80:localhost:8080', 'serveo.net']);
+        // Reverting Tunnel to noVNC port (6080) for full manual control
+        tunnelInstance = spawn('ssh', ['-o', 'StrictHostKeyChecking=no', '-R', '80:localhost:6080', 'serveo.net']);
 
         const tunnelUrl = await new Promise((resolve) => {
-            const timeout = setTimeout(() => resolve("http://localhost:8080"), 25000);
+            const timeout = setTimeout(() => resolve("http://localhost:6080"), 25000);
             const handleOutput = (data) => {
                 const match = data.toString().match(/https:\/\/[a-z0-9.-]+\.(serveo\.net|serveousercontent\.com)/i);
                 if (match && !match[0].includes('console.serveo.net')) {
@@ -41,9 +41,10 @@ async function launchMeeting(url) {
             headless: false,
             userDataDir: userDataDir,
             defaultViewport: { width: 1280, height: 720 },
-            ignoreDefaultArgs: ['--disable-extensions'],
+            // CRITICAL: ignoreDefaultArgs removes the "controlled by automated software" bar
+            ignoreDefaultArgs: ['--enable-automation'],
             args: [
-                `--app=${url}`, // --- PWA MODE (JOIN AS INSTALLED APP) ---
+                `--app=${url}`, // Join as installed app
                 '--window-size=1280,720',
                 '--window-position=0,0',
                 '--no-sandbox',
@@ -55,7 +56,6 @@ async function launchMeeting(url) {
                 '--disable-blink-features=AutomationControlled',
                 '--lang=en-US,en',
                 `--user-agent=${userAgent}`,
-                // --- ANTI-RISK WEBRTC BLOCKING ---
                 '--disable-webrtc-hw-encoding',
                 '--disable-webrtc-hw-decoding',
                 '--force-webrtc-ip-handling-policy=disable_non_proxied_udp',
@@ -223,7 +223,10 @@ async function launchMeeting(url) {
             } catch (e) {}
         }, 15000); // Slower, more humanized interval
 
-        return { url: tunnelUrl };
+        const vncPass = process.env.VNC_PASSWORD || "";
+        const dashboardUrl = `${tunnelUrl}/vnc.html?autoconnect=true&password=${vncPass}&resize=scale&scale=1.0&touch_mode=1&view_only=false&reconnect=true`;
+
+        return { url: dashboardUrl };
     } catch (error) {
         logger.error("Stealth Engine Failure:", error);
         throw error;
