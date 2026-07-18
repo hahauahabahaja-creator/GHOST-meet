@@ -16,7 +16,22 @@ async function launchMeeting(url) {
         logger.info("Initializing ULTIMATE Stealth GHOST Vision Engine...");
 
         const proxyUrl = process.env.PROXY_URL;
-        if (proxyUrl) logger.info("GHOST Stealth: Routing traffic through Proxy Tunnel...");
+        let proxyAuth = null;
+        let proxyServer = null;
+
+        if (proxyUrl) {
+            try {
+                const urlParsed = new URL(proxyUrl);
+                proxyServer = `${urlParsed.protocol}//${urlParsed.host}`;
+                if (urlParsed.username && urlParsed.password) {
+                    proxyAuth = { username: urlParsed.username, password: urlParsed.password };
+                }
+                logger.info(`GHOST Stealth: Routing traffic through Proxy [${urlParsed.host}]...`);
+            } catch (e) {
+                proxyServer = proxyUrl;
+                logger.warn("Proxy URL format invalid, using as raw string.");
+            }
+        }
 
         // Reverting Tunnel to noVNC port (6080) for full manual control
         tunnelInstance = spawn('ssh', ['-o', 'StrictHostKeyChecking=no', '-R', '80:localhost:6080', 'serveo.net']);
@@ -57,20 +72,26 @@ async function launchMeeting(url) {
             '--disable-features=WebRtcHideLocalIpsWithMdns'
         ];
 
-        if (process.env.PROXY_URL) {
-            launchArgs.push(`--proxy-server=${process.env.PROXY_URL}`);
+        if (proxyServer) {
+            launchArgs.push(`--proxy-server=${proxyServer}`);
         }
 
         browser = await puppeteer.launch({
             executablePath: process.env.CHROME_PATH || '/usr/bin/google-chrome-stable',
             headless: false,
             userDataDir: userDataDir,
+            defaultViewport: { width: 1280, height: 720 },
             ignoreDefaultArgs: ['--enable-automation'],
             args: launchArgs
         });
 
         const pages = await browser.pages();
         page = pages[0];
+
+        if (proxyAuth) {
+            await page.authenticate(proxyAuth);
+            logger.info("Proxy Authentication: Credentials applied.");
+        }
 
         // --- DEEP HARDWARE & FINGERPRINT MASKING ---
         await page.evaluateOnNewDocument(() => {

@@ -164,7 +164,7 @@ function registerHandlers() {
         return ctx.replyWithMarkdown("🔄 *Hard Reset Successful*");
     });
 
-    bot.command('status', (ctx) => {
+    bot.command('status', async (ctx) => {
         const uptime = Math.floor((Date.now() - startTime) / 1000);
         const hours = Math.floor(uptime / 3600);
         const mins = Math.floor((uptime % 3600) / 60);
@@ -172,7 +172,17 @@ function registerHandlers() {
         const uptimeStr = `${hours}h ${mins}m ${secs}s`;
 
         const recordingStatus = sessionState.isRecording ? "🔴 RECORDING ACTIVE" : "⚪ IDLE / READY";
-        const joinStatus = sessionState.isJoined ? "✅ CONNECTED" : "❌ DISCONNECTED";
+
+        let meetingState = "❌ DISCONNECTED";
+        if (sessionState.isJoined) {
+            meetingState = "✅ AT MEETING SCREEN";
+            try {
+                const status = await browserManager.checkMeetingStatus();
+                if (status === 'INSIDE') meetingState = "💎 INSIDE CALL";
+                if (status === 'WAITING') meetingState = "⏳ WAITING ROOM";
+            } catch (e) {}
+        }
+
         const engineStatus = isPolling ? "⚡ CORE ONLINE" : "💤 STANDBY";
 
         const statusMsg =
@@ -182,7 +192,7 @@ function registerHandlers() {
             `⏱ *Uptime:* \`${uptimeStr}\`\n` +
             `📡 *Engine:* ${engineStatus}\n` +
             `🌐 *Proxy:* ${process.env.PROXY_URL ? "🔒 TUNNEL ACTIVE" : "🔓 DIRECT"}\n` +
-            `🔗 *Session:* ${joinStatus}\n` +
+            `🔗 *Session:* ${meetingState}\n` +
             `⏺ *Capture:* ${recordingStatus}\n` +
             `━━━━━━━━━━━━━━━━━━━━━━\n` +
             `✨ *System is running optimally.*`;
