@@ -4,57 +4,60 @@ const STATUS_ICONS = {
     INITIALIZING: '⏳',
     DEPLOYING: '🚀',
     CONNECTING: '🌀',
+    WAITING: '⚠️',
     READY: '✅',
     RECORDING: '🔴',
     FINALIZING: '💾',
     COMPLETED: '✨',
     ERROR: '🚨',
     STARTING: '⚡',
-    STOPPING: '💾'
+    STOPPING: '💾',
+    ENDED: '🛑'
 };
 
 function generatePlayerUI(params) {
     const { status, timer, meetingUrl, dashboardUrl, partCount, progress } = params;
     const icon = STATUS_ICONS[status] || '🛸';
 
-    let uiText = `${icon} *GHOST meet | LIVE PLAYER*\n`;
+    let uiText = `${icon} *GHOST meet | ULTIMATE PLAYER*\n`;
     uiText += `━━━━━━━━━━━━━━━━━━━━━━\n`;
-    uiText += `📍 Status: *${status}*\n`;
+    uiText += `🛰 *System Status:* \`${status.replace(/_/g, ' ')}\`\n`;
 
     if (dashboardUrl) {
-        uiText += `🔗 Control: [ACCESS DASHBOARD](${dashboardUrl})\n`;
+        uiText += `🔗 *Control:* [ACCESS DASHBOARD](${dashboardUrl})\n`;
     } else if (meetingUrl) {
-        uiText += `🔗 Target: [MEETING ROOM](${meetingUrl})\n`;
+        uiText += `📍 *Target:* [MEETING ROOM](${meetingUrl})\n`;
     }
 
     if (timer) {
-        uiText += `⏱ Timer: *${timer}*\n`;
+        uiText += `⏱ *Session Time:* \`${timer}\`\n`;
     }
 
     if (progress !== undefined) {
-        uiText += `📊 Progress: ${getProgressBar(progress)}\n`;
+        uiText += `📊 *Processing:* ${getProgressBar(progress)}\n`;
     } else if (status === 'DEPLOYING') {
-        uiText += `📊 Progress: ${getProgressBar(30)}\n`;
-    } else if (status === 'CONNECTING') {
-        uiText += `📊 Progress: ${getProgressBar(70)}\n`;
+        uiText += `📊 *Deployment:* ${getProgressBar(30)}\n`;
+        uiText += `⏳ *ETA:* \`~2 mins\` (Spinning up cloud runner)`;
+    } else if (status === 'CONNECTING' || status === 'WAITING') {
+        uiText += `📊 *Connection:* ${getProgressBar(70)}\n`;
     }
 
     if (partCount) {
-        uiText += `🎥 Captured: *${partCount} parts*\n`;
+        uiText += `🎞 *Captured:* \`${partCount} parts\`\n`;
     }
 
     uiText += `━━━━━━━━━━━━━━━━━━━━━━\n`;
 
-    if (status === 'READY') {
-        uiText += `✅ System Ready. Click START below to begin.`;
-    } else if (status === 'STARTING') {
-        uiText += `⚡ Initializing engine... Please wait.`;
+    if (status === 'WAITING') {
+        uiText += `⚠️ *WAITING FOR ADMISSION...*\n_The host needs to let me in. Please wait or check the dashboard._`;
+    } else if (status === 'READY') {
+        uiText += `✅ *Engine Ready.* All systems green. Click below to begin stealth capture.`;
     } else if (status === 'RECORDING') {
-        uiText += `⏺ *CAPTURING LIVE FEED...* 🛰`;
-    } else if (status === 'STOPPING') {
-        uiText += `💾 Finalizing capture... Please wait.`;
+        uiText += `⏺ *CAPTURING LIVE FEED...* 🛰\n_Stealth mode active. Auto-Stop enabled._`;
+    } else if (status === 'ENDED') {
+        uiText += `🛑 *MEETING ENDED.* Automatically finalizing capture...`;
     } else if (status === 'FINALIZING') {
-        uiText += `⚙️ Processing & Uploading...`;
+        uiText += `⚙️ *AI Processing & Secure Upload...*`;
     }
 
     const buttons = [];
@@ -65,8 +68,8 @@ function generatePlayerUI(params) {
             Markup.button.callback('📸 SCREENSHOT', 'cmd_screenshot'),
             Markup.button.callback('🛑 STOP & SAVE', 'cmd_stop')
         ]);
-    } else if (status === 'STARTING' || status === 'STOPPING') {
-        buttons.push([Markup.button.callback('⏳ PROCESSING...', 'none')]);
+    } else if (status === 'DEPLOYING' || status === 'INITIALIZING' || status === 'CONNECTING' || status === 'WAITING') {
+        buttons.push([Markup.button.callback('❌ CANCEL DEPLOYMENT', 'cmd_cancel')]);
     }
 
     return {
@@ -76,10 +79,11 @@ function generatePlayerUI(params) {
 }
 
 function getProgressBar(percent) {
-    const total = 10;
+    const total = 12;
     const progress = Math.round((percent / 100) * total);
     const remaining = total - progress;
-    return `[${"█".repeat(progress)}${"░".repeat(remaining)}] ${percent}%`;
+    // Premium style progress bar using shaded blocks
+    return `\`[${"█".repeat(progress)}${"░".repeat(remaining)}]\` *${percent}%*`;
 }
 
 module.exports = {

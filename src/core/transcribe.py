@@ -33,6 +33,40 @@ def run_transcription(audio_file, output_file):
             f.write(f"Detected Language: {result.get('language', 'unknown')}\n")
             f.write("Mode: Native Hinglish (Hindi + English Mix)\n\n")
 
+            f.write("📋 AI MEETING SUMMARY & ACTION ITEMS\n")
+            f.write("━━━━━━━━━━━━━━━━━━━━━━\n")
+
+            # More robust keyword extraction for Summary
+            summary_points = []
+            action_items = []
+
+            keywords_summary = ["decide", "conclude", "summary", "final", "agree", "discuss", "problem", "solution"]
+            keywords_actions = ["tomorrow", "task", "assign", "do it", "fix", "issue", "send", "update", "check"]
+
+            for segment in result['segments']:
+                text = segment['text'].lower()
+                if any(k in text for k in keywords_summary):
+                    summary_points.append(segment['text'].strip())
+                if any(k in text for k in keywords_actions):
+                    action_items.append(segment['text'].strip())
+
+            f.write("🔹 KEY DECISIONS / DISCUSSIONS:\n")
+            if summary_points:
+                for p in summary_points[:5]:
+                    f.write(f" • {p}\n")
+            else:
+                f.write(" • No specific conclusions detected.\n")
+
+            f.write("\n🔸 ACTION ITEMS / TASKS:\n")
+            if action_items:
+                for a in action_items[:5]:
+                    f.write(f" • {a}\n")
+            else:
+                f.write(" • No specific tasks identified.\n")
+
+            f.write("━━━━━━━━━━━━━━━━━━━━━━\n\n")
+
+            f.write("📑 FULL TRANSCRIPT:\n")
             for segment in result['segments']:
                 start = segment['start']
                 mins = int(start // 60)

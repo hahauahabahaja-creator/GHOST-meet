@@ -10,6 +10,9 @@ const ui = require('../utils/ui');
 
 dotenv.config();
 
+const INSTANCE_ID = Math.random().toString(36).substring(2, 8).toUpperCase();
+const startTime = Date.now();
+
 let bot = new Telegraf(process.env.TELEGRAM_BOT_TOKEN);
 const ALLOWED_GROUP_ID = process.env.ALLOWED_GROUP_ID;
 
@@ -22,7 +25,8 @@ let sessionState = {
     recordingStartTime: null,
     timerInterval: null,
     isProcessing: false,
-    handoffActive: false
+    handoffActive: false,
+    cleanupQueue: []
 };
 
 function resetSessionState() {
@@ -38,38 +42,39 @@ function resetSessionState() {
         clearInterval(sessionState.timerInterval);
         sessionState.timerInterval = null;
     }
+    sessionState.cleanupQueue = [];
 }
 
 let isPolling = false;
 
 async function startEngine(dropUpdates = false) {
     if (sessionState.handoffActive) {
-        console.log("🚫 [ENGINE] Polling blocked: Handoff is active.");
+        console.log(`🚫 [${INSTANCE_ID}] Polling blocked: Handoff is active.`);
         return;
     }
 
     try {
         if (isPolling) {
-            console.log("🔄 [ENGINE] Stopping previous instance...");
+            console.log(`🔄 [${INSTANCE_ID}] Stopping previous instance...`);
             await bot.stop();
             isPolling = false;
         }
 
-        console.log("🚀 [ENGINE] Starting polling...");
+        console.log(`🚀 [${INSTANCE_ID}] Starting polling...`);
         await bot.launch({ dropPendingUpdates: dropUpdates });
         isPolling = true;
-        console.log("✅ [ENGINE] GHOST meet is ACTIVE.");
+        console.log(`✅ [${INSTANCE_ID}] GHOST meet is ACTIVE.`);
     } catch (err) {
         if (err.message.includes('409')) {
-            console.log("⚠️ [CONFLICT] Another instance is running. Handoff might be in progress.");
+            console.log(`⚠️ [${INSTANCE_ID}] CONFLICT: Another instance is running.`);
             isPolling = false;
         } else {
-            console.error("❌ [ERROR] Engine Crash:", err.message);
+            console.error(`❌ [${INSTANCE_ID}] Engine Crash:`, err.message);
             isPolling = false;
         }
 
-        if (!sessionState.handoffActive) {
-            console.log("🛠 [RECOVERY] Retrying engine start in 15s...");
+        if (!sessionState.handoffActive && !isPolling) {
+            console.log(`🛠 [${INSTANCE_ID}] Retrying engine start in 15s...`);
             setTimeout(() => startEngine(false), 15000);
         }
     }
@@ -129,10 +134,12 @@ function registerHandlers() {
             "• /help - View detailed usage guide.\n" +
             "• /reset - Force a hard system reboot.\n\n" +
             "💡 *Tip:* Simply send a Google Meet or Zoom link to begin.";
-        return ctx.replyWithMarkdown(introText);
+        const msg = await ctx.replyWithMarkdown(introText);
+        sessionState.cleanupQueue.push(msg.message_id);
+        return;
     });
 
-    bot.command('help', (ctx) => {
+    bot.command('help', async (ctx) => {
         const helpText =
             "📖 *GHOST meet | Operation Manual*\n" +
             "━━━━━━━━━━━━━━━━━━━━━━\n" +
@@ -144,7 +151,9 @@ function registerHandlers() {
             "• /status - Check if the engine is busy or idle.\n" +
             "• /reset - Emergency Hard Reset. Use this if the bot is stuck or not responding.\n\n" +
             "⚠️ *Note:* Only one session can be active at a time.";
-        return ctx.replyWithMarkdown(helpText);
+        const msg = await ctx.replyWithMarkdown(helpText);
+        sessionState.cleanupQueue.push(msg.message_id);
+        return;
     });
 
     bot.command('reset', async (ctx) => {
@@ -155,9 +164,29 @@ function registerHandlers() {
     });
 
     bot.command('status', (ctx) => {
-        const recordingStatus = sessionState.isRecording ? "🔴 ACTIVE" : "⚪ IDLE";
+        const uptime = Math.floor((Date.now() - startTime) / 1000);
+        const hours = Math.floor(uptime / 3600);
+        const mins = Math.floor((uptime % 3600) / 60);
+        const secs = uptime % 60;
+        const uptimeStr = `${hours}h ${mins}m ${secs}s`;
+
+        const recordingStatus = sessionState.isRecording ? "🔴 RECORDING ACTIVE" : "⚪ IDLE / READY";
         const joinStatus = sessionState.isJoined ? "✅ CONNECTED" : "❌ DISCONNECTED";
-        ctx.replyWithMarkdown(`📟 *DIAGNOSTICS*\n━━━━━━━━━━━━━━━━━━━━━━\n• Engine: Online\n• Session: ${joinStatus}\n• Recording: ${recordingStatus}`);
+        const engineStatus = isPolling ? "⚡ CORE ONLINE" : "💤 STANDBY";
+
+        const statusMsg =
+            `📟 *GHOST | SYSTEM DIAGNOSTICS*\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `🆔 *Instance:* \`${INSTANCE_ID}\`\n` +
+            `⏱ *Uptime:* \`${uptimeStr}\`\n` +
+            `📡 *Engine:* ${engineStatus}\n` +
+            `🔗 *Session:* ${joinStatus}\n` +
+            `⏺ *Capture:* ${recordingStatus}\n` +
+            `🔄 *Handoff:* ${sessionState.handoffActive ? "🟠 ACTIVE" : "🟢 INACTIVE"}\n` +
+            `━━━━━━━━━━━━━━━━━━━━━━\n` +
+            `✨ *System is running optimally.*`;
+
+        ctx.replyWithMarkdown(statusMsg);
     });
 
     bot.on('text', async (ctx, next) => {
@@ -218,6 +247,24 @@ function registerHandlers() {
             if (screenshotPath) await ctx.replyWithPhoto({ source: screenshotPath }, { caption: "🖼 *LIVE PREVIEW*", parse_mode: 'Markdown' });
         } catch (e) {}
     });
+
+    bot.action('cmd_cancel', async (ctx) => {
+        try {
+            await ctx.answerCbQuery("❌ Cancelling...");
+
+            // Cleanup current session UI
+            if (sessionState.playerMessageId) {
+                await ctx.telegram.editMessageText(ctx.chat.id, sessionState.playerMessageId, null, "🛑 *Deployment Terminated.* Engine returned to standby.", { parse_mode: 'Markdown' }).catch(() => {});
+            }
+
+            resetSessionState();
+            sessionState.handoffActive = false; // Force unlock
+
+            await startEngine(true); // Restart and drop pending updates
+        } catch (e) {
+            console.error("Cancel Action Error:", e.message);
+        }
+    });
 }
 
 async function handleJoin(ctx, meetingUrl) {
@@ -237,6 +284,12 @@ async function handleJoin(ctx, meetingUrl) {
     sessionState.currentUrl = meetingUrl;
     sessionState.currentChatId = ctx.chat.id;
     sessionState.isJoined = true;
+
+    // Cleanup old intro/help messages
+    for (const msgId of sessionState.cleanupQueue) {
+        await ctx.telegram.deleteMessage(ctx.chat.id, msgId).catch(() => {});
+    }
+    sessionState.cleanupQueue = [];
 
     console.log(`🚀 [JOIN] Triggering workflow for: ${meetingUrl}`);
 

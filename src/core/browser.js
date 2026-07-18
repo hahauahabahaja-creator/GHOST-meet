@@ -62,39 +62,37 @@ async function launchMeeting(url) {
 
         await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 1 });
 
-        let attempts = 0;
-        const maxAttempts = 5;
-        let joined = false;
-
-        while (attempts < maxAttempts && !joined) {
-            attempts++;
-            logger.info(`🔄 Joining Attempt ${attempts}/${maxAttempts}...`);
-
-            try {
-                await page.goto(url, { waitUntil: 'networkidle2', timeout: 60000 });
-
-                await new Promise(r => setTimeout(r, 8000));
-
-                const content = await page.content();
-                if (content.includes('You can\'t join this video call') || content.includes('Returning to home screen')) {
-                    logger.warn("⚠️ Google blocked the join. Retrying in 5 seconds...");
-                    await new Promise(r => setTimeout(r, 5000));
-                } else {
-                    joined = true;
-                    logger.info("✅ Successfully reached Meeting Entrance.");
-                }
-            } catch (e) {
-                logger.error(`Attempt ${attempts} failed: ${e.message}`);
-            }
-        }
-
-        const vncPass = process.env.VNC_PASSWORD || "";
-        const dashboardUrl = `${tunnelUrl}/vnc.html?autoconnect=true&password=${vncPass}&resize=scale&scale=1.0&touch_mode=1&view_only=false&reconnect=true`;
-
-        return { url: dashboardUrl };
+        return { url: `${tunnelUrl}/vnc.html?autoconnect=true&password=${vncPass}&resize=scale&scale=1.0&touch_mode=1&view_only=false&reconnect=true` };
     } catch (error) {
         logger.error("Stealth Engine Failure:", error);
         throw error;
+    }
+}
+
+async function checkMeetingStatus() {
+    if (!page) return 'UNKNOWN';
+    try {
+        const content = await page.content();
+
+        // Detection logic for Google Meet
+        if (content.includes('Asking to join') || content.includes('You\'ll join the call when someone lets you in')) {
+            return 'WAITING';
+        }
+
+        if (content.includes('You can\'t join this video call') || content.includes('Returning to home screen') || content.includes('Meeting has ended')) {
+            return 'ENDED';
+        }
+
+        // Detect if we are actually inside (looking for typical UI elements like the leave button)
+        const isInside = await page.evaluate(() => {
+            return !!document.querySelector('[aria-label="Leave call"]') || !!document.querySelector('.VfPpkd-Bz112c-LgbsSe');
+        });
+
+        if (isInside) return 'INSIDE';
+
+        return 'CONNECTING';
+    } catch (e) {
+        return 'ERROR';
     }
 }
 
